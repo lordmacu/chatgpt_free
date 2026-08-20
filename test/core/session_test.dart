@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:chatgpt_free/chatgpt_free.dart';
 import 'package:chatgpt_free/src/core/session.dart';
@@ -7,13 +8,13 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_transport.dart';
 
-/// A transport whose [stream] resolves promptly but to a byte stream that
-/// never emits or closes — models a connection that hangs partway through a
-/// turn (headers received, body never arrives), so a turn started against it
-/// stays genuinely in flight forever. Used only to exercise
-/// ChatGptSession's non-reentrancy guard.
-class _HangingTransport implements Transport {
+/// A transport whose [stream] calls are driven entirely by the test: each
+/// call gets its own [StreamController] that the test feeds (or fails) by
+/// hand, so two overlapping [ChatGptSession.send] calls can be sequenced
+/// deterministically instead of racing on real I/O timing.
+class _ControlledTransport implements Transport {
   final List<Map<String, dynamic>> sentBodies = [];
+  final List<StreamController<List<int>>> controllers = [];
 
   @override
   Future<Stream<List<int>>> stream(
@@ -22,7 +23,9 @@ class _HangingTransport implements Transport {
     required String deviceId,
   }) async {
     sentBodies.add(body);
-    return StreamController<List<int>>().stream; // never emits, never closes
+    final controller = StreamController<List<int>>();
+    controllers.add(controller);
+    return controller.stream;
   }
 
   @override
@@ -39,6 +42,17 @@ class _HangingTransport implements Transport {
   @override
   void close() {}
 }
+
+/// A minimal, complete SSE turn: sets up the message document, appends one
+/// word of text, then signals the end of the stream. Hand-built rather than
+/// read from a fixture so a test can feed it through a [StreamController] at
+/// whatever moment it chooses.
+final List<int> _minimalCompleteTurnSse = utf8.encode(
+  'data: {"p":"","o":"add","v":{"message":{"content":'
+  '{"parts":[""]},"metadata":{}}}}\n\n'
+  'data: {"p":"/message/content/parts/0","o":"append","v":"ok"}\n\n'
+  'data: [DONE]\n\n',
+);
 
 void main() {
   test('streams text and records the turn in history', () async {
@@ -194,45 +208,68 @@ void main() {
   });
 
   test(
-      'a second send() call while a turn is in flight throws instead of '
-      'corrupting history (Fix round 2)', () async {
-    final transport = _HangingTransport();
+      'an overlapping call is unaffected when another call unwinds after a '
+      'mid-stream failure (Fix round 3)', () async {
+    // Fix round 2 tried to prevent this with a reentrancy guard; that guard
+    // could brick a session forever (see the task report), so round 3
+    // removed it. Overlapping send() calls on one session ARE possible
+    // again, which means the round-1 unwind's real defect matters again: it
+    // removed the "last two" _history entries by position, trusting they
+    // were this call's own. This test proves the fix -- identity-based
+    // removal -- actually holds under exactly the interleaving that broke
+    // the old removeLast() approach.
+    final transport = _ControlledTransport();
     final session = ChatGptSession(transport: transport);
 
-    final firstStream = session.send('first');
-    final firstEvents = <ChatEvent>[];
-    final firstSub =
-        firstStream.listen(firstEvents.add, onError: (Object _) {});
-
-    // Let the first call's generator body actually run: past validation,
-    // past the (promptly-resolving) transport call, past staging its user
-    // turn and streaming assistant placeholder in history, and into the
-    // await-for loop where it now hangs forever waiting on a byte stream
-    // that never emits. Only past this point is the first turn genuinely
-    // "in flight" in the sense the concurrency hazard cares about.
+    // Start the FIRST call and let it stage its user turn and streaming
+    // assistant placeholder, then leave it hanging: nothing is fed to its
+    // controller yet.
+    Object? firstError;
+    final firstDone = Completer<void>();
+    session.send('first').listen(
+      (_) {},
+      onError: (Object e) {
+        firstError = e;
+        if (!firstDone.isCompleted) firstDone.complete();
+      },
+      onDone: () {
+        if (!firstDone.isCompleted) firstDone.complete();
+      },
+    );
     await Future<void>.delayed(Duration.zero);
     expect(session.history.length, 2,
         reason: 'the first call should have staged its turn by now');
+    final firstUser = session.history[0];
+    final firstAssistant = session.history[1];
 
-    expect(
-      () => session.send('second'),
-      throwsA(isA<InvalidRequestException>()),
-    );
+    // Run a SECOND call to completion while the first is still pending. Its
+    // entries land after the first call's -- at the position a count-based
+    // `removeLast()` unwind would target. Start draining before feeding its
+    // controller: draining begins consuming the stream (so send() actually
+    // runs and calls _transport.stream(), creating controllers[1]) without
+    // blocking, and only resolves once the fed bytes let the turn finish.
+    final secondDone = session.send('second').drain<void>();
+    await Future<void>.delayed(Duration.zero);
+    transport.controllers[1].add(_minimalCompleteTurnSse);
+    await secondDone;
+    expect(session.history.length, 4);
+    final secondUser = session.history[2];
+    final secondAssistant = session.history[3];
 
-    // The rejected second call must not have touched the transport or
-    // history at all: no second user turn, no second assistant placeholder,
-    // and the first call's still-in-flight entries are untouched.
-    expect(transport.sentBodies.length, 1);
+    // Now fail the FIRST call's stream, mid-turn.
+    final error = Exception('dropped mid-turn');
+    transport.controllers[0].addError(error);
+    await firstDone.future;
+    expect(firstError, same(error));
+
+    // Only the first call's own two entries were removed -- by identity. A
+    // count-based `removeLast()` x2 unwind would instead delete the SECOND
+    // call's entries (the ones actually last), which is exactly the
+    // corruption this test exists to catch.
     expect(session.history.length, 2);
-    expect(session.history.where((m) => m.role == 'user').length, 1);
-    expect(session.history.where((m) => m.role == 'assistant').length, 1);
-    expect(session.history.last.isStreaming, isTrue);
-
-    // Cleanup only, not awaited: cancelling a subscription nested this deep
-    // inside chained async* generators (_send -> TurnParser.parse -> readSse)
-    // that are suspended on a StreamController which never adds data or
-    // closes does not resolve its cancel() Future in Dart -- there is
-    // nothing left to test past this point, so don't block the test on it.
-    unawaited(firstSub.cancel());
+    expect(identical(session.history[0], secondUser), isTrue);
+    expect(identical(session.history[1], secondAssistant), isTrue);
+    expect(session.history.any((m) => identical(m, firstUser)), isFalse);
+    expect(session.history.any((m) => identical(m, firstAssistant)), isFalse);
   });
 }
