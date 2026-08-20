@@ -11,6 +11,13 @@ import '../core/session.dart';
 
 /// Drives a chat transcript. Plain [ChangeNotifier], so it works with Riverpod,
 /// Bloc, Provider or a bare `AnimatedBuilder` — no state management imposed.
+///
+/// Note on exceptions: the [model] and [webSearch] setters throw a plain
+/// `StateError` (from `dart:core`), not a [ChatGptException], when called
+/// while [isStreaming] is true — see [model]'s doc comment. A blanket
+/// `on ChatGptException catch (e) { ... }` around UI code that also calls
+/// these setters will not catch that; guard the setter call itself instead
+/// (e.g. disable the control while [isStreaming] is true).
 class ChatController extends ChangeNotifier {
   /// Creates a controller.
   ChatController({
@@ -127,6 +134,27 @@ class ChatController extends ChangeNotifier {
   /// Set when the backend answered with a different model than requested.
   String? get downgradeNotice => _downgradeNotice;
 
+  /// The [SendOptions] a call to [send] that omits its own [options]
+  /// argument would build for the *next* turn: `SendOptions(model: model,
+  /// webSearch: webSearch)`, read fresh from this controller's current
+  /// [model] and [webSearch] every time this getter is read (not cached),
+  /// so it reflects a setter call made moments — or a frame — earlier.
+  ///
+  /// This is the required starting point for a one-off per-turn override,
+  /// specifically to avoid the footgun [send]'s own doc comment warns
+  /// about: because an explicit [SendOptions] passed to [send] is used
+  /// verbatim, building one from scratch — `const SendOptions(canvas:
+  /// true)` — silently sends `model: 'auto'` (`SendOptions`' own default)
+  /// even while a model picker bound to [model] still shows something
+  /// else selected, with nothing surfacing the mismatch: `ModelDowngraded`
+  /// compares the *requested* model against the answering one, so a
+  /// self-inflicted `'auto'` substitution here looks exactly like a
+  /// correct request for `'auto'`. Start from this getter instead:
+  /// `controller.send(text, options: controller.currentOptions.copyWith(canvas:
+  /// true))` changes only `canvas` for that turn and keeps whatever model
+  /// is actually selected.
+  SendOptions get currentOptions => SendOptions(model: _model, webSearch: _webSearch);
+
   /// Sends [text] and streams the reply into [messages].
   ///
   /// [options] and [attachments] are per-turn, mirroring
@@ -136,16 +164,22 @@ class ChatController extends ChangeNotifier {
   /// [webSearch]: **[options], when supplied, is used exactly as given —
   /// it is never merged with the controller's settings.** If [options] is
   /// omitted (the default, and the only form that existed before this
-  /// parameter was added), this turn uses
-  /// `SendOptions(model: this.model, webSearch: this.webSearch)`, built
-  /// fresh from the controller's current settings at the moment [send] is
-  /// called. There is no field-by-field fallback in either direction: a
-  /// caller who passes `SendOptions(model: 'gpt-5-6')` gets `webSearch:
-  /// null` for that turn (SendOptions' own default) even if
-  /// `this.webSearch` is `true` — not the controller's value quietly filled
-  /// in. This keeps the rule predictable from the call site alone: pass
-  /// [options] and it is the whole story for that turn; omit it and the
-  /// controller's current settings are the whole story.
+  /// parameter was added), this turn uses [currentOptions] — built fresh
+  /// from the controller's current [model] and [webSearch] at the moment
+  /// [send] is called. There is no field-by-field fallback in either
+  /// direction: a caller who passes `SendOptions(model: 'gpt-5-6')` gets
+  /// `webSearch: null` for that turn (SendOptions' own default) even if
+  /// `this.webSearch` is `true` — not the controller's value quietly
+  /// filled in. This keeps the rule predictable from the call site alone:
+  /// pass [options] and it is the whole story for that turn; omit it and
+  /// the controller's current settings are the whole story.
+  ///
+  /// **Do not build a per-turn [options] override from a bare `SendOptions(...)`
+  /// literal** — that drops [model] back to `SendOptions`' own `'auto'`
+  /// default, invisibly, because verbatim precedence means nothing fills
+  /// it back in. Extend [currentOptions] instead:
+  /// `controller.send(text, options: controller.currentOptions.copyWith(canvas: true))`.
+  /// See [currentOptions]'s doc comment for why this matters.
   Future<void> send(
     String text, {
     SendOptions? options,
@@ -164,7 +198,7 @@ class ChatController extends ChangeNotifier {
         .sendWithRotation(
           _session,
           text,
-          options: options ?? SendOptions(model: _model, webSearch: _webSearch),
+          options: options ?? currentOptions,
           attachments: attachments,
         )
         .listen(

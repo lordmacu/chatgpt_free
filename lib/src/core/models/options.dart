@@ -76,6 +76,43 @@ class SendOptions {
   /// Upstream scheduling class.
   final ServiceTier? serviceTier;
 
+  /// Returns a copy with the given fields replaced; every omitted field
+  /// keeps this instance's own value.
+  ///
+  /// This is the safe way to extend an existing [SendOptions] for one
+  /// field without dropping the rest — in particular [model], which a bare
+  /// `SendOptions(canvas: true)` literal would silently reset to `'auto'`.
+  /// From `ChatController`, start from `controller.currentOptions` (built
+  /// from the controller's own current settings) rather than a fresh
+  /// `SendOptions()`: `controller.currentOptions.copyWith(canvas: true)`
+  /// changes only `canvas` and keeps whatever model is currently selected.
+  ///
+  /// Caveat for the nullable fields ([webSearch], [tools], [canvas]):
+  /// passing `null` here — including not passing the argument at all —
+  /// means "leave this field as it is", never "set it to `null`". There is
+  /// no way to distinguish those two through `copyWith`, because `null` is
+  /// also this type's own "unset" sentinel for those three fields.
+  /// Construct a new `SendOptions(...)` directly when you need to force one
+  /// of them back to `null`.
+  SendOptions copyWith({
+    String? model,
+    bool? webSearch,
+    bool? tools,
+    bool? canvas,
+    bool? jsonMode,
+    ThinkingEffort? thinkingEffort,
+    ServiceTier? serviceTier,
+  }) =>
+      SendOptions(
+        model: model ?? this.model,
+        webSearch: webSearch ?? this.webSearch,
+        tools: tools ?? this.tools,
+        canvas: canvas ?? this.canvas,
+        jsonMode: jsonMode ?? this.jsonMode,
+        thinkingEffort: thinkingEffort ?? this.thinkingEffort,
+        serviceTier: serviceTier ?? this.serviceTier,
+      );
+
   /// Throws [InvalidRequestException] if the backend would reject these.
   ///
   /// Validating here matters: an anonymous 422 still costs a message from the

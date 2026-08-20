@@ -204,6 +204,80 @@ void main() {
     });
   });
 
+  // Fix round 1, Finding 1: verbatim precedence is a footgun when a caller
+  // reaches for a bare `SendOptions(...)` literal to flip on one extra
+  // feature — that silently resets `model` back to 'auto', with nothing
+  // surfacing it (ModelDowngraded compares the now-wrong *requested*
+  // model against the answering one, so it looks like a correct `auto`
+  // request). currentOptions + copyWith is the fix: the documented,
+  // tested way to extend the controller's own current settings instead of
+  // starting from a bare literal.
+
+  group('currentOptions', () {
+    test('reflects the controller\'s current model and webSearch', () {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6',
+        webSearch: true,
+      );
+
+      expect(controller.currentOptions.model, 'gpt-5-6');
+      expect(controller.currentOptions.webSearch, true);
+    });
+
+    test('reflects a setter call made after construction', () {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6',
+      );
+
+      controller.model = 'gpt-5-5-mini';
+      controller.webSearch = false;
+
+      expect(controller.currentOptions.model, 'gpt-5-5-mini');
+      expect(controller.currentOptions.webSearch, false);
+    });
+
+    test('the documented pattern — currentOptions.copyWith(...) — sends '
+        'the picker\'s model, not SendOptions\' bare default', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6', // the "picker" selection this turn must keep
+      );
+
+      await controller.send(
+        'turn this into a doc',
+        options: controller.currentOptions.copyWith(canvas: true),
+      );
+
+      final body = transport.sentBodies.single;
+      expect(body['model'], 'gpt-5-6'); // NOT SendOptions' 'auto' default
+      expect(body['force_use_canvas'], true);
+    });
+
+    test('the footgun this fixes: a bare SendOptions(...) literal really '
+        'does drop the picker\'s model to auto (documents the hazard '
+        'currentOptions exists to avoid)', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6',
+      );
+
+      await controller.send(
+        'turn this into a doc',
+        options: const SendOptions(canvas: true),
+      );
+
+      // This is the hazard, not the recommendation — contrast with the
+      // currentOptions.copyWith(...) test directly above.
+      expect(transport.sentBodies.single['model'], 'auto');
+    });
+  });
+
   group('mutable model and webSearch', () {
     test('setting model calls notifyListeners()', () async {
       final transport = FakeTransport();

@@ -81,7 +81,10 @@ call — so applying it would leave the controller's reported setting
 disagreeing with what actually produced the text on screen. The fix is
 the same one the snippet above already shows: disable the control
 (`onChanged: controller.isStreaming ? null : ...`) instead of leaving it
-live and catching the exception.
+live and catching the exception. Note that this is a plain `StateError`,
+not a `ChatGptException` — a blanket `on ChatGptException catch (e) {
+... }` around your UI code will not catch it, so guard the setter call
+itself rather than relying on that catch block.
 
 ## Per-turn options: `SendOptions` and attachments
 
@@ -89,26 +92,53 @@ live and catching the exception.
 `attachments` that the core `ChatGptSession.send()` does, for the calls
 where the controller's own `model`/`webSearch` settings aren't enough —
 Canvas, JSON mode, `thinkingEffort`, `serviceTier`, or a one-off text
-attachment:
-
-```dart
-await controller.send(
-  'Summarize the attached notes as JSON.',
-  options: const SendOptions(model: 'gpt-5-6', jsonMode: true),
-  attachments: const [TextAttachment(name: 'notes.md', content: '...')],
-);
-```
+attachment.
 
 **Precedence:** an explicit `options` argument is used exactly as given —
 it is never merged field-by-field with `controller.model` /
 `controller.webSearch`. Omit `options` (as every call before this
 parameter existed still can) and the turn falls back to
-`SendOptions(model: controller.model, webSearch: controller.webSearch)`,
-built fresh from the controller's current settings at call time. There is
-no partial fallback: passing `SendOptions(model: 'gpt-5-6')` above sends
-`webSearch: null` for that turn — `SendOptions`' own default — even if
-`controller.webSearch` is `true`. Pass `options` and it is the whole story
+`controller.currentOptions` — `SendOptions(model: controller.model,
+webSearch: controller.webSearch)`, built fresh from the controller's
+current settings at call time. Pass `options` and it is the whole story
 for that turn; omit it and the controller's current settings are.
+
+**This has a sharp edge: never build a per-turn override from a bare
+`SendOptions(...)` literal.** `SendOptions.model` defaults to `'auto'`, so
+```dart
+// Wrong — silently sends model: 'auto', even if the picker shows gpt-5-6.
+await controller.send('Turn this into a doc.',
+    options: const SendOptions(canvas: true));
+```
+sends `'auto'` in place of whatever model your picker has selected — and
+nothing tells you: `ModelDowngraded` compares the *requested* model
+against the one that answered, and here the (wrong) request and the
+answer both say `'auto'`, so it looks like a correct request rather than
+a bug. This is the same class of silent model substitution the package
+exists to expose in the backend — don't reintroduce it at this boundary.
+
+Start from `controller.currentOptions` and `copyWith` instead, so only the
+field you actually mean to change moves:
+
+```dart
+await controller.send(
+  'Turn this into a doc.',
+  options: controller.currentOptions.copyWith(canvas: true),
+);
+
+await controller.send(
+  'Summarize the attached notes as JSON.',
+  options: controller.currentOptions.copyWith(jsonMode: true),
+  attachments: const [TextAttachment(name: 'notes.md', content: '...')],
+);
+```
+
+`SendOptions.copyWith(...)` replaces only the fields you name and keeps
+the rest — including `model` — exactly as they were. One caveat: for the
+three nullable fields (`webSearch`, `tools`, `canvas`), `copyWith` can't
+tell "leave unchanged" apart from "set to `null`" (both look like an
+omitted argument), so it can never *clear* one of those back to `null` —
+construct a fresh `SendOptions(...)` directly if you need that.
 
 ## Using the client directly
 
