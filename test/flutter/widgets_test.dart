@@ -71,7 +71,11 @@ void main() {
       Citation(title: 'Fuente B', url: 'https://b.example'),
     ])));
 
-    expect(find.byType(ActionChip), findsNWidgets(2));
+    // Plain Chips, not ActionChips: with no onTap a source must not pretend to
+    // be pressable. Updated from findsNWidgets(2) on ActionChip, which encoded
+    // the fake-button behaviour this widget was fixed to stop doing.
+    expect(find.byType(Chip), findsNWidgets(2));
+    expect(find.byType(ActionChip), findsNothing);
     expect(find.text('Fuente A'), findsOneWidget);
   });
 
@@ -156,5 +160,53 @@ void main() {
     // Unmount so dispose() tears down the AnimationController/Ticker
     // deterministically, rather than leaving that to implicit teardown.
     await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('ChatView keeps the composer inside the safe area', (tester) async {
+    // Regression: ChatView was a bare Column, so on a gesture-nav device the
+    // composer rendered behind the system navigation bar and the send button
+    // could not be tapped. Caught only by installing on a real phone.
+    final controller = ChatController(client: ChatGptClient(transport: FakeTransport()));
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(body: ChatView(controller: controller)),
+    ));
+
+    expect(
+      find.ancestor(
+        of: find.byType(MessageComposer),
+        matching: find.byType(SafeArea),
+      ),
+      findsWidgets,
+      reason: 'the composer must sit inside a SafeArea',
+    );
+  });
+
+  testWidgets('a citation with no handler is not a fake button', (tester) async {
+    // Regression: CitationChips used an ActionChip with an empty onPressed, so
+    // a source looked tappable and did nothing — reported on device as "it made
+    // a button" that responded to nothing.
+    await tester.pumpWidget(_wrap(const CitationChips(citations: [
+      Citation(title: 'Visor Sismos', url: 'https://sgc.gov.co'),
+    ])));
+
+    expect(find.byType(ActionChip), findsNothing);
+    expect(find.byType(Chip), findsOneWidget);
+    expect(find.text('Visor Sismos'), findsOneWidget);
+  });
+
+  testWidgets('a citation with a handler is tappable and reports the source',
+      (tester) async {
+    final tapped = <Citation>[];
+    await tester.pumpWidget(_wrap(CitationChips(
+      citations: const [Citation(title: 'Visor Sismos', url: 'https://sgc.gov.co')],
+      onTap: tapped.add,
+    )));
+
+    await tester.tap(find.byType(ActionChip));
+    await tester.pump();
+
+    expect(tapped.single.url, 'https://sgc.gov.co');
   });
 }

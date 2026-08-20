@@ -52,9 +52,26 @@ abstract interface class Transport {
 /// The real transport, over `package:http`.
 class HttpTransport implements Transport {
   /// Creates a transport, optionally over a supplied [client].
-  HttpTransport({http.Client? client}) : _client = client ?? http.Client();
+  ///
+  /// [connectTimeout] bounds how long the request may take to produce response
+  /// headers; [idleTimeout] bounds the gap between two chunks of the response
+  /// body. Both mirror the Python reference client this package is ported from
+  /// (60s read, 10s connect). Without them a stalled connection hangs the turn
+  /// forever with no error — the caller just sees a spinner that never stops,
+  /// which is exactly what happened the first time this ran on a real phone.
+  HttpTransport({
+    http.Client? client,
+    this.connectTimeout = const Duration(seconds: 10),
+    this.idleTimeout = const Duration(seconds: 60),
+  }) : _client = client ?? http.Client();
 
   final http.Client _client;
+
+  /// How long to wait for response headers before giving up.
+  final Duration connectTimeout;
+
+  /// How long to wait between two chunks of a streaming body before giving up.
+  final Duration idleTimeout;
 
   Map<String, String> _turnHeaders(String deviceId, String path) => {
         ...androidHeaders(deviceId),
@@ -70,14 +87,17 @@ class HttpTransport implements Transport {
 
   Never _throwForStatus(int status, String body) {
     if (status == 429 || status == 403) {
-      throw RateLimitedException(
-          body.isEmpty ? 'HTTP $status' : body.substring(0, body.length.clamp(0, 300)));
+      throw RateLimitedException(body.isEmpty
+          ? 'HTTP $status'
+          : body.substring(0, body.length.clamp(0, 300)));
     }
     if (status == 422) {
-      throw InvalidRequestException(
-          body.isEmpty ? 'HTTP 422' : body.substring(0, body.length.clamp(0, 300)));
+      throw InvalidRequestException(body.isEmpty
+          ? 'HTTP 422'
+          : body.substring(0, body.length.clamp(0, 300)));
     }
-    throw TransportException('HTTP $status: ${body.substring(0, body.length.clamp(0, 300))}');
+    throw TransportException(
+        'HTTP $status: ${body.substring(0, body.length.clamp(0, 300))}');
   }
 
   @override
@@ -92,7 +112,13 @@ class HttpTransport implements Transport {
 
     final http.StreamedResponse response;
     try {
-      response = await _client.send(request);
+      response = await _client.send(request).timeout(
+            connectTimeout,
+            onTimeout: () => throw TransportException(
+                'no response headers after ${connectTimeout.inSeconds}s'),
+          );
+    } on ChatGptException {
+      rethrow;
     } on Object catch (e) {
       throw TransportException('$e');
     }
@@ -101,7 +127,11 @@ class HttpTransport implements Transport {
       final text = await response.stream.bytesToString();
       _throwForStatus(response.statusCode, text);
     }
-    return _wrapBodyErrors(response.stream);
+    return _wrapBodyErrors(response.stream.timeout(
+      idleTimeout,
+      onTimeout: (sink) => sink.addError(TransportException(
+          'the response stalled for ${idleTimeout.inSeconds}s')),
+    ));
   }
 
   /// Wraps [bytes] so an error raised while the response BODY is still
@@ -130,7 +160,7 @@ class HttpTransport implements Transport {
       final r = await _client.get(
         Uri.parse('$kBaseUrl$path'),
         headers: {...androidHeaders(deviceId), 'X-OpenAI-Target-Path': path},
-      );
+      ).timeout(idleTimeout);
       if (r.statusCode != 200) _throwForStatus(r.statusCode, r.body);
       return r.body;
     } on ChatGptException {
@@ -147,15 +177,17 @@ class HttpTransport implements Transport {
     required String deviceId,
   }) async {
     try {
-      final r = await _client.post(
-        Uri.parse('$kBaseUrl$path'),
-        headers: {
-          ...androidHeaders(deviceId),
-          'X-OpenAI-Target-Path': path,
-          'Content-Type': 'application/json',
-        },
-        body: jsonEncode(body),
-      );
+      final r = await _client
+          .post(
+            Uri.parse('$kBaseUrl$path'),
+            headers: {
+              ...androidHeaders(deviceId),
+              'X-OpenAI-Target-Path': path,
+              'Content-Type': 'application/json',
+            },
+            body: jsonEncode(body),
+          )
+          .timeout(idleTimeout);
       if (r.statusCode != 200) _throwForStatus(r.statusCode, r.body);
       return r.body;
     } on ChatGptException {

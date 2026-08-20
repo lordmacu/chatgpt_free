@@ -17,3 +17,9 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+
+flutter:
+  # Required: this package's widgets use Material icons (MessageComposer's send
+  # button). Without it Flutter does not bundle MaterialIcons-Regular.otf and
+  # every Icons.* renders as a fallback glyph on device.
+  uses-material-design: true

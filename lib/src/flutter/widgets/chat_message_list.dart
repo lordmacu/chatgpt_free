@@ -6,10 +6,17 @@ import 'message_bubble.dart';
 /// A scrolling transcript that sticks to the newest message.
 class ChatMessageList extends StatefulWidget {
   /// Creates the list.
-  const ChatMessageList({required this.messages, super.key});
+  const ChatMessageList({
+    required this.messages,
+    this.onCitationTap,
+    super.key,
+  });
 
   /// Messages, oldest first.
   final List<ChatMessage> messages;
+
+  /// Forwarded to each bubble's citations.
+  final ValueChanged<Citation>? onCitationTap;
 
   @override
   State<ChatMessageList> createState() => _ChatMessageListState();
@@ -38,6 +45,9 @@ class _ChatMessageListState extends State<ChatMessageList> {
         controller: _controller,
         padding: const EdgeInsets.symmetric(vertical: 8),
         itemCount: widget.messages.length,
-        itemBuilder: (_, i) => MessageBubble(message: widget.messages[i]),
+        itemBuilder: (_, i) => MessageBubble(
+          message: widget.messages[i],
+          onCitationTap: widget.onCitationTap,
+        ),
       );
 }
