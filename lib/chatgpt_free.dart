@@ -3,3 +3,6 @@ library;
 
 export 'src/core/constants.dart';
 export 'src/core/errors.dart';
+export 'src/core/events.dart';
+export 'src/core/models/models.dart';
+export 'src/core/models/options.dart';
