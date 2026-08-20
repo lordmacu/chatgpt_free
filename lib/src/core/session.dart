@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:uuid/uuid.dart';
 
 import 'events.dart';
@@ -23,7 +25,20 @@ const Map<String, String> _modelAliases = {
 /// exchanged so far. Overlapping [send] calls on one session are
 /// unsupported — create one session per concurrent conversation instead.
 class ChatGptSession {
-  /// Creates a session.
+  /// Creates a session with a brand-new anonymous device id.
+  ///
+  /// This constructor never reads from [store], even when one is supplied —
+  /// only [ChatGptSession.restore] does. A constructor that silently resumed
+  /// whatever device id and conversation happened to be sitting in [store]
+  /// would be a trap: every plain `ChatGptSession(store: ...)` call would
+  /// then quietly continue someone else's — or last run's own — abandoned
+  /// conversation instead of starting one, with nothing at the call site to
+  /// suggest that. Restoration is opt-in; call [ChatGptSession.restore]
+  /// when that is actually what you want.
+  ///
+  /// This constructor does still *write* its fresh device id to [store]
+  /// (fire-and-forget — the constructor stays synchronous), so a later
+  /// [ChatGptSession.restore] call has something to find.
   ChatGptSession({
     Transport? transport,
     ChatGptStore? store,
@@ -32,7 +47,40 @@ class ChatGptSession {
   })  : _transport = transport ?? HttpTransport(),
         _ownsTransport = transport == null,
         _store = store ?? InMemoryStore(),
-        _deviceId = deviceId ?? _uuid.v4();
+        _deviceId = deviceId ?? _uuid.v4() {
+    unawaited(_store.write('device_id', _deviceId));
+  }
+
+  /// Creates a session, resuming the device id and conversation id last
+  /// saved to [store], when both are present there.
+  ///
+  /// This is the opt-in counterpart to the plain constructor: call this
+  /// instead when you *want* to continue whatever conversation was last
+  /// persisted — e.g. to keep the same device id, and therefore the same
+  /// per-model quota bucket, across app restarts. Falls back to a fresh
+  /// device id and no conversation — exactly like the plain constructor —
+  /// when [store] has nothing saved yet.
+  static Future<ChatGptSession> restore({
+    Transport? transport,
+    required ChatGptStore store,
+    String systemPrompt = '',
+  }) async {
+    final savedDeviceId = await store.read('device_id');
+    final savedConversationId = await store.read('conversation_id');
+    final session = ChatGptSession(
+      transport: transport,
+      store: store,
+      systemPrompt: systemPrompt,
+      deviceId: savedDeviceId,
+    );
+    // Only resume the conversation id alongside its own device id: a
+    // conversation id is meaningless (or worse, wrong) paired with a device
+    // id the backend never saw it on.
+    if (savedDeviceId != null && savedConversationId != null) {
+      session._conversationId = savedConversationId;
+    }
+    return session;
+  }
 
   final Transport _transport;
 
@@ -64,19 +112,28 @@ class ChatGptSession {
   /// Abandons the current device id and conversation, keeping local history.
   ///
   /// Called after the hourly cap trips. Server-side context is gone, so the
-  /// next prompt replays [history] inline.
+  /// next prompt replays [history] inline. The new device id is persisted to
+  /// the store (fire-and-forget — this method stays synchronous so
+  /// [ChatGptClient.sendWithRotation] can call it inline mid-stream) so a
+  /// later [ChatGptSession.restore] picks up the rotated identity rather
+  /// than the abandoned one; the old conversation id is cleared from the
+  /// store for the same reason — it belongs to the device id just left
+  /// behind, not the new one.
   void rotateDevice() {
     _deviceId = _uuid.v4();
     _conversationId = null;
     _parentMessageId = null;
     _firstTurn = true;
+    unawaited(_store.write('device_id', _deviceId));
+    unawaited(_store.delete('conversation_id'));
   }
 
-  /// Clears everything, including local history.
+  /// Clears everything, including local history and persisted state.
   Future<void> reset() async {
     rotateDevice();
     _history.clear();
     await _store.delete('conversation_id');
+    await _store.write('device_id', _deviceId);
   }
 
   /// Sends [message] and streams the turn's events.

@@ -2,7 +2,6 @@
 library;
 
 import 'package:chatgpt_free/chatgpt_free.dart';
-import 'package:chatgpt_free/src/core/client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -1,4 +1,3 @@
-import 'package:chatgpt_free/src/core/client.dart';
 import 'package:chatgpt_free/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';

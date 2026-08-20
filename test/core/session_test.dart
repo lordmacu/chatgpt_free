@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:chatgpt_free/chatgpt_free.dart';
-import 'package:chatgpt_free/src/core/session.dart';
 import 'package:chatgpt_free/src/core/transport.dart';
 import 'package:flutter_test/flutter_test.dart';
 

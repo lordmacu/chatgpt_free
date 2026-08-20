@@ -1,6 +1,4 @@
 import 'package:chatgpt_free/chatgpt_free.dart';
-import 'package:chatgpt_free/src/core/client.dart';
-import 'package:chatgpt_free/src/core/session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_transport.dart';

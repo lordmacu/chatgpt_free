@@ -58,7 +58,6 @@ any new event type you haven't handled.
 
 ```dart
 import 'package:chatgpt_free/chatgpt_free.dart';
-import 'package:chatgpt_free/src/core/client.dart';
 
 final client = ChatGptClient();
 final session = client.newSession();
@@ -78,8 +77,12 @@ await for (final event
       print('Hourly cap hit ($reason) — rotated device id and retried.');
     case TurnCompleted(:final actualModel):
       print('[$actualModel] $buffer');
-    default:
-      break;
+    case SearchStarted() ||
+          CitationsReceived() ||
+          GenuiWidgetEvent() ||
+          CanvasDocument() ||
+          ImageGenerated():
+      break; // Not shown here — see the API docs for these event types.
   }
 }
 
@@ -138,7 +141,12 @@ state of all of these without spending a message.
 The package keeps no platform storage dependency of its own — it stores
 only the device id and conversation id, through the small `ChatGptStore`
 interface, so you can back it with whatever your app already uses
-(`shared_preferences`, Hive, secure storage, ...):
+(`shared_preferences`, Hive, secure storage, ...). Saving is automatic once
+a store is attached, but resuming is not: `ChatGptClient.newSession()`
+always starts a brand-new device, even with a store attached, so attaching
+one never silently resumes a stranger's — or last run's own abandoned —
+conversation. Call `ChatGptClient.restoreSession()` (or the lower-level
+`ChatGptSession.restore(...)`) when you actually want that:
 
 ```dart
 import 'package:chatgpt_free/chatgpt_free.dart';
@@ -159,10 +167,13 @@ class SharedPrefsStore implements ChatGptStore {
 }
 
 final client = ChatGptClient(store: SharedPrefsStore());
+final session = await client.restoreSession();
+print(session.deviceId); // same id as last run, once one was ever saved
 ```
 
-Without a store, state lives only as long as the process does — every
-fresh launch starts a brand-new anonymous device.
+Without a store — or without calling `restoreSession()` — state lives only
+as long as the process does: every fresh launch starts a brand-new
+anonymous device.
 
 ## License
 

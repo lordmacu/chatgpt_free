@@ -20,8 +20,21 @@ class ChatGptClient {
   final Transport _transport;
   final ChatGptStore _store;
 
-  /// Starts a new conversation.
+  /// Starts a new conversation with a brand-new anonymous device id.
+  ///
+  /// Never resumes state from this client's [store], even if one was
+  /// supplied — see [restoreSession] for that.
   ChatGptSession newSession({String systemPrompt = ''}) => ChatGptSession(
+        transport: _transport,
+        store: _store,
+        systemPrompt: systemPrompt,
+      );
+
+  /// Starts a session, resuming the device id and conversation id last
+  /// saved to this client's [store], when present. See
+  /// [ChatGptSession.restore].
+  Future<ChatGptSession> restoreSession({String systemPrompt = ''}) =>
+      ChatGptSession.restore(
         transport: _transport,
         store: _store,
         systemPrompt: systemPrompt,
