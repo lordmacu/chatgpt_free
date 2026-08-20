@@ -20,7 +20,8 @@ const Map<String, String> _modelAliases = {
 };
 
 /// One anonymous conversation: a device id, a conversation id, and the turns
-/// exchanged so far.
+/// exchanged so far. Overlapping [send] calls on one session are
+/// unsupported — create one session per concurrent conversation instead.
 class ChatGptSession {
   /// Creates a session.
   ChatGptSession({
@@ -79,6 +80,22 @@ class ChatGptSession {
   }
 
   /// Sends [message] and streams the turn's events.
+  ///
+  /// If this call fails, the entries it staged in [history] (the user turn
+  /// and the streaming assistant placeholder) are removed by identity, so a
+  /// failure in this call can never disturb entries a different, overlapping
+  /// call has staged of its own. That is the only concurrency guarantee this
+  /// method makes.
+  ///
+  /// Calling [send] again before a previous call's stream has finished is
+  /// unsupported. Two overlapping calls degrade the session in ways nothing
+  /// here guards against: both may read [systemPrompt] as still pending and
+  /// so send it on more than one turn, and both may read [conversationId] as
+  /// unset and go out as a new conversation — whichever finishes last then
+  /// silently overwrites [conversationId], orphaning the other call's
+  /// conversation branch on the backend with no way to reference it again.
+  /// For concurrent conversations, create one [ChatGptSession] per
+  /// conversation rather than overlapping calls to [send] on a single one.
   Stream<ChatEvent> send(
     String message, {
     SendOptions options = const SendOptions(),
@@ -132,15 +149,25 @@ class ChatGptSession {
     // entries after this call's, or after this call's own entries are
     // updated in place by a delta.
     //
+    // That identity tracking covers _history only. _firstTurn and
+    // _conversationId are plain scalars with no equivalent guard: two
+    // overlapping calls can both read _firstTurn as true and both send the
+    // system prompt, and can both read _conversationId as null and both go
+    // out as a new conversation, with whichever finishes last overwriting
+    // it. See send()'s doc comment — overlapping calls are unsupported for
+    // exactly this reason; this method only promises that a failure cannot
+    // corrupt another call's _history entries.
+    //
     // A stream that throws mid-turn (dropped connection, malformed frame)
     // must not leave this call's placeholder behind for the next send() to
     // fold into its prompt as "prior conversation" — so everything from here
     // to the end of the turn is wrapped in try/catch: on any failure, undo
     // exactly (and only) what this call staged, by identity, and restore
-    // _firstTurn, then rethrow. A caller that retries the same message after
-    // any failure — before the transport call or mid-stream — sees history
-    // exactly as if this attempt never happened, regardless of what any
-    // other overlapping call has done to _history in the meantime.
+    // this call's own _firstTurn state, then rethrow. A caller that retries
+    // the same message after any failure — before the transport call or
+    // mid-stream — sees its own staged _history entries removed exactly as
+    // if this attempt never happened; entries any other call has staged are
+    // untouched, because they were never this call's to begin with.
     _firstTurn = false;
     final userTurn = ChatMessage(role: 'user', text: message);
     // Deliberately not `const`: two overlapping calls must get distinct
