@@ -2,8 +2,6 @@ import 'package:chatgpt_free/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'main.dart' show kAvailableModels;
-
 /// One conversation in the drawer.
 ///
 /// The LIST is local, because anonymous conversations cannot be listed:

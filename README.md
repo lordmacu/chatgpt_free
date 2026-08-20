@@ -265,6 +265,46 @@ Without a store — or without calling `restoreSession()` — state lives only
 as long as the process does: every fresh launch starts a brand-new
 anonymous device.
 
+## Generated interfaces (`package:chatgpt_free/ui_schema.dart`)
+
+A proof of concept, kept in its own library so it never reaches an app that
+only wants the chat client. It asks the model for a screen described as
+JSON, and renders that JSON as real widgets.
+
+The vocabulary is deliberately tiny — eight node types and five actions —
+because the point is to find out how well a model describes an interface,
+not to be a UI framework. `kUiSchemaInstructions` is the prompt, and it
+documents exactly what `UiSpec` parses: anything outside the vocabulary is
+a `ProtocolException` rather than a guess, so a half-understood screen
+refuses to render instead of rendering wrong.
+
+```dart
+import 'package:chatgpt_free/chatgpt_free.dart';
+import 'package:chatgpt_free/ui_schema.dart';
+
+// A fresh session per attempt: the instructions are a prompt, so reusing a
+// conversation would stack them turn after turn.
+final session = ChatGptClient().newSession();
+final reply = await session.sendJson(
+  '$kUiSchemaInstructions\n\nuna calculadora simple',
+);
+
+// Renders as widgets, and runs its own actions.
+Widget build(BuildContext context) => JsonUiView(spec: UiSpec.fromJson(reply));
+```
+
+Nothing generated is executed. State lives in `JsonUiView`, actions only
+read and write that map, and the sole thing evaluated is the arithmetic
+inside a `calc` action — by a hand-written parser that understands
+`+ - * /`, parentheses and decimals, and nothing else.
+
+| Node types | Actions |
+| --- | --- |
+| `column`, `row`, `grid`, `container`, `spacer`, `text`, `button`, `textField` | `set`, `append`, `clear`, `backspace`, `calc` |
+
+The `Develop` tab in `example/` is this end to end: type what you want,
+and the interface it builds is on screen and working.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

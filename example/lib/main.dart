@@ -1,6 +1,7 @@
 import 'package:chatgpt_free/chatgpt_free.dart';
 import 'package:flutter/material.dart';
 
+import 'build_screen.dart';
 import 'chat_screen.dart';
 import 'translate_screen.dart';
 
@@ -67,6 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             TranslateScreen(client: _client),
             ChatScreen(client: _client),
+            BuildScreen(client: _client),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -82,6 +84,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.chat_bubble_outline),
               selectedIcon: Icon(Icons.chat_bubble),
               label: 'Chat',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.auto_awesome_outlined),
+              selectedIcon: Icon(Icons.auto_awesome),
+              label: 'Develop',
             ),
           ],
         ),
