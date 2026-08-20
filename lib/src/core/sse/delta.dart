@@ -19,9 +19,15 @@ class DeltaApplier {
     final value = delta.containsKey('v') ? delta['v'] : delta['value'];
 
     if (op == 'patch' || (op.isEmpty && value is List && rawPath == null)) {
+      // Sub-deltas are applied through the same apply() path-tracking
+      // machinery, so they mutate _lastPath as a side effect. Save and
+      // restore it around the loop so a patch never leaks its last
+      // sub-delta's path out to whatever implicit-form delta follows it.
+      final savedLastPath = _lastPath;
       for (final sub in (value as List)) {
         if (sub is Map) apply(Map<String, dynamic>.from(sub));
       }
+      _lastPath = savedLastPath;
       return;
     }
 
@@ -33,13 +39,7 @@ class DeltaApplier {
     switch (effectiveOp) {
       case 'add':
       case 'replace':
-        if (path.isEmpty && value is Map) {
-          _document
-            ..clear()
-            ..addAll(Map<String, dynamic>.from(value));
-        } else {
-          _write(path, value);
-        }
+        _write(path, value);
       case 'append':
         _append(path, value);
       case 'truncate':
@@ -102,7 +102,20 @@ class DeltaApplier {
 
   void _write(String path, dynamic value) {
     final segments = _segments(path);
-    if (segments.isEmpty) return;
+    if (segments.isEmpty) {
+      // A root path means "replace the whole document". This is reachable
+      // both explicitly (o: 'add'/'replace' with p: '') and implicitly
+      // (a value-only delta whose _lastPath is still '' — the backend's
+      // common way to swap in a whole new message shell mid-stream).
+      // Silently bailing here — the original bug — meant _append's root
+      // merge was computed and then discarded.
+      if (value is Map) {
+        _document
+          ..clear()
+          ..addAll(Map<String, dynamic>.from(value));
+      }
+      return;
+    }
     final parent = _parentOf(segments);
     final last = segments.last;
     if (parent is Map) {

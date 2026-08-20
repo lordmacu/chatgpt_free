@@ -1,5 +1,40 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:chatgpt_free/src/core/sse/delta.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Extracts the JSON payload of every `event: delta` frame from a raw
+/// captured SSE transcript, in order. Frames of other event types (or with
+/// no event line at all, like `message_marker`/`[DONE]`) are skipped.
+List<Map<String, dynamic>> _deltaFramesFrom(String sseContent) {
+  final frames = <Map<String, dynamic>>[];
+  String? currentEvent;
+  final dataLines = <String>[];
+
+  void flush() {
+    if (currentEvent == 'delta' && dataLines.isNotEmpty) {
+      final payload = jsonDecode(dataLines.join('\n'));
+      if (payload is Map<String, dynamic>) frames.add(payload);
+    }
+    currentEvent = null;
+    dataLines.clear();
+  }
+
+  for (final rawLine in const LineSplitter().convert(sseContent)) {
+    final line = rawLine.trimRight();
+    if (line.isEmpty) {
+      flush();
+    } else if (line.startsWith('event:')) {
+      currentEvent = line.substring('event:'.length).trim();
+    } else if (line.startsWith('data:')) {
+      dataLines.add(line.substring('data:'.length).trim());
+    }
+  }
+  flush(); // in case the file doesn't end on a blank line
+
+  return frames;
+}
 
 void main() {
   late DeltaApplier applier;
@@ -171,5 +206,93 @@ void main() {
     applier.apply({'p': '/message/content/parts/0', 'o': 'teleport', 'v': 'nope'});
 
     expect(textOf(applier), 'ok');
+  });
+
+  // Regression for Finding 1: an implicit-form delta (no 'o', no 'p') whose
+  // path resolves to root ('') swaps in a whole new message shell. Real
+  // streams do this repeatedly (user -> system rebases -> assistant) before
+  // any streamed text arrives. The applier must replace the document at
+  // root, not silently drop the swap while the stale message lingers.
+  test('an implicit root swap replaces the message instead of leaving it stale', () {
+    applier.apply({
+      'p': '',
+      'o': 'add',
+      'v': {
+        'message': {
+          'author': {'role': 'user'},
+          'content': {
+            'parts': ['echoed prompt']
+          }
+        }
+      }
+    });
+    // No 'o', no 'p': continues the previous path, which is still '' right
+    // after the initial root 'add' above.
+    applier.apply({
+      'v': {
+        'message': {
+          'author': {'role': 'assistant'},
+          'content': {
+            'parts': ['']
+          }
+        }
+      }
+    });
+    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hola mundo'});
+
+    expect(textOf(applier), 'hola mundo');
+    expect(
+      ((applier.document['message'] as Map)['author'] as Map)['role'],
+      'assistant',
+    );
+  });
+
+  // Regression for Finding 2: the recursive apply() calls that walk a
+  // patch's sub-deltas must not leak _lastPath past the patch. A bare
+  // continuation delta right after a patch should land on the path that was
+  // active before the patch, not on whatever the last sub-delta touched.
+  test('a patch restores the pre-patch path for the next implicit continuation', () {
+    applier.apply({
+      'p': '',
+      'o': 'add',
+      'v': {
+        'message': {
+          'content': {
+            'parts': ['']
+          },
+          'status': 'in_progress'
+        }
+      }
+    });
+    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
+    applier.apply({
+      'p': '',
+      'o': 'patch',
+      'v': [
+        {'p': '/message/status', 'o': 'replace', 'v': 'foo'},
+      ]
+    });
+    applier.apply({'v': 'world'});
+
+    expect(textOf(applier), 'hello world');
+    expect((applier.document['message'] as Map)['status'], 'foo');
+  });
+
+  // The test that would have caught Finding 1: fold a real captured stream
+  // (plain_text.sse) through the applier end-to-end and check the final
+  // assembled text is exactly the assistant's reply, with no user-prompt
+  // prefix left over from the message the stream started with.
+  test('folds a captured stream into the assistant reply with no stale prefix', () {
+    final content = File('test/fixtures/plain_text.sse').readAsStringSync();
+
+    for (final delta in _deltaFramesFrom(content)) {
+      applier.apply(delta);
+    }
+
+    expect(textOf(applier), 'hola mundo');
+    expect(
+      ((applier.document['message'] as Map)['author'] as Map)['role'],
+      'assistant',
+    );
   });
 }
