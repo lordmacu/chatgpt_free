@@ -93,4 +93,19 @@ void main() {
 
     expect(find.textContaining('2 * 3'), findsOneWidget);
   });
+
+  testWidgets('renders a Canvas document without its :::writing markers',
+      (tester) async {
+    // With force_use_canvas the reply arrives wrapped like this; printing the
+    // markers is the same defect as printing ``` fences.
+    const reply = ':::writing{variant="document" id="58321" title="El mar"}\n'
+        'El mar es **enorme**.\n'
+        ':::';
+    await tester.pumpWidget(_bubble(reply));
+
+    expect(find.textContaining(':::'), findsNothing);
+    expect(find.textContaining('variant='), findsNothing);
+    expect(find.textContaining('El mar es'), findsOneWidget);
+    expect(_runsWithWeight(tester, FontWeight.bold).join(), contains('El mar'));
+  });
 }

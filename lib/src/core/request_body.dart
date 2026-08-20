@@ -17,6 +17,7 @@ Map<String, dynamic> buildConversationBody({
   String? parentMessageId,
   List<String> fileTexts = const [],
   String? systemPrompt,
+  bool retractJsonMode = false,
 }) {
   final parts = <String>[
     if (systemPrompt != null && systemPrompt.isNotEmpty)
@@ -24,6 +25,12 @@ Map<String, dynamic> buildConversationBody({
     if (options.jsonMode)
       'You must respond with valid JSON only. No markdown, no explanations — '
           'just the raw JSON object or array.',
+    // Retracting matters because the instruction above lives in the
+    // conversation, not in a request flag: without this the model keeps
+    // answering in JSON after the caller turns the option off.
+    if (retractJsonMode)
+      'Stop answering in JSON. Reply in ordinary prose from now on, unless I '
+          'ask for JSON again.',
     for (var i = 0; i < fileTexts.length; i++)
       '[Attached file ${i + 1}]:\n${fileTexts[i]}',
     message,

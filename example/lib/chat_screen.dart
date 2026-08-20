@@ -219,21 +219,11 @@ class _ChatScreenState extends State<ChatScreen> {
           appBar: AppBar(
             title: const Text('chatgpt_free'),
             actions: [
-              IconButton(
-                tooltip: _controller.webSearch == true
-                    ? 'Web search: on'
-                    : 'Web search: off',
-                isSelected: _controller.webSearch == true,
-                selectedIcon: const Icon(Icons.travel_explore),
-                icon: const Icon(Icons.travel_explore_outlined),
-                style: IconButton.styleFrom(
-                  backgroundColor: _controller.webSearch == true
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : null,
-                  foregroundColor: _controller.webSearch == true
-                      ? Theme.of(context).colorScheme.onPrimaryContainer
-                      : null,
-                ),
+              _ToggleAction(
+                on: _controller.webSearch == true,
+                icon: Icons.travel_explore_outlined,
+                onIcon: Icons.travel_explore,
+                label: 'Web search',
                 onPressed: _controller.isStreaming
                     ? null
                     : () => _controller.webSearch =
@@ -262,20 +252,20 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
                 ),
               ),
-              IconButton(
-                tooltip: _jsonMode ? 'JSON mode: on' : 'JSON mode: off',
-                isSelected: _jsonMode,
-                selectedIcon: const Icon(Icons.data_object),
-                icon: const Icon(Icons.data_object_outlined),
+              _ToggleAction(
+                on: _jsonMode,
+                icon: Icons.data_object_outlined,
+                onIcon: Icons.data_object,
+                label: 'JSON mode',
                 onPressed: _controller.isStreaming
                     ? null
                     : () => setState(() => _jsonMode = !_jsonMode),
               ),
-              IconButton(
-                tooltip: _canvas ? 'Canvas: on' : 'Canvas: off',
-                isSelected: _canvas,
-                selectedIcon: const Icon(Icons.article),
-                icon: const Icon(Icons.article_outlined),
+              _ToggleAction(
+                on: _canvas,
+                icon: Icons.article_outlined,
+                onIcon: Icons.article,
+                label: 'Canvas',
                 onPressed: _controller.isStreaming
                     ? null
                     : () => setState(() => _canvas = !_canvas),
@@ -367,4 +357,42 @@ class _ConversationsDrawer extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// An AppBar toggle whose "on" state is unmistakable.
+///
+/// Material's outlined/filled icon pairs are nearly identical at AppBar size —
+/// the web-search and JSON toggles both looked unresponsive until they got a
+/// filled background. Every toggle here goes through this widget so the next
+/// one cannot repeat that.
+class _ToggleAction extends StatelessWidget {
+  const _ToggleAction({
+    required this.on,
+    required this.icon,
+    required this.onIcon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  final bool on;
+  final IconData icon;
+  final IconData onIcon;
+  final String label;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return IconButton(
+      tooltip: '$label: ${on ? 'on' : 'off'}',
+      isSelected: on,
+      selectedIcon: Icon(onIcon),
+      icon: Icon(icon),
+      style: IconButton.styleFrom(
+        backgroundColor: on ? scheme.primaryContainer : null,
+        foregroundColor: on ? scheme.onPrimaryContainer : null,
+      ),
+      onPressed: onPressed,
+    );
+  }
 }

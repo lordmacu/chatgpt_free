@@ -139,6 +139,15 @@ class ChatGptSession {
   String? _conversationId;
   String? _parentMessageId;
   bool _firstTurn = true;
+
+  /// True once any turn in this conversation asked for JSON.
+  ///
+  /// JSON mode is a prompt instruction, not an API flag — response_format is
+  /// inert on this backend. The model therefore keeps obeying the instruction
+  /// from conversation history after the caller turns the option off, which
+  /// makes the toggle look broken. Tracking it lets the next non-JSON turn
+  /// explicitly retract it.
+  bool _jsonModeUsed = false;
   final List<ChatMessage> _history = [];
 
   /// The device id this session identifies as.
@@ -243,6 +252,7 @@ class ChatGptSession {
       fileTexts: [
         for (final a in attachments) '${a.name}\n${a.content}',
       ],
+      retractJsonMode: _jsonModeUsed && !options.jsonMode,
       systemPrompt: sendingSystemPrompt ? systemPrompt : null,
     );
 
@@ -291,6 +301,7 @@ class ChatGptSession {
     // if this attempt never happened; entries any other call has staged are
     // untouched, because they were never this call's to begin with.
     _firstTurn = false;
+    if (options.jsonMode) _jsonModeUsed = true;
     final userTurn = ChatMessage(role: 'user', text: message);
     // Deliberately not `const`: two overlapping calls must get distinct
     // object identities here, since everything below locates this call's

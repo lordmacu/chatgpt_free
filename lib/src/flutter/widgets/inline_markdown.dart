@@ -20,7 +20,26 @@ List<TextSpan> inlineMarkdownSpans(String text, TextStyle? base) {
   final spans = <TextSpan>[];
   var cursor = 0;
 
-  // Fenced blocks first: their contents must never be re-parsed for inline
+  // Canvas first: with force_use_canvas the whole reply arrives wrapped in a
+  // :::writing{...} block, and printing those markers is the same defect as
+  // printing ``` fences. The title becomes a heading; the body is ordinary
+  // Markdown and falls through to the rules below.
+  final canvas = _writing.firstMatch(text);
+  if (canvas != null) {
+    final title = _titleAttr.firstMatch(canvas.group(1) ?? '')?.group(1);
+    final spans = <TextSpan>[];
+    if (title != null && title.trim().isNotEmpty) {
+      spans.add(TextSpan(
+        text: '$title\n\n',
+        style:
+            (base ?? const TextStyle()).copyWith(fontWeight: FontWeight.bold),
+      ));
+    }
+    spans.addAll(inlineMarkdownSpans((canvas.group(2) ?? '').trim(), base));
+    return spans;
+  }
+
+  // Fenced blocks next: their contents must never be re-parsed for inline
   // markers, or a JSON string containing an asterisk would come out italic.
   for (final fence in _fence.allMatches(text)) {
     if (fence.start > cursor) {
@@ -58,6 +77,12 @@ List<TextSpan> _prose(String text, TextStyle? base) {
 }
 
 final RegExp _heading = RegExp(r'^(#{1,6})\s+(.*)$');
+
+/// `:::writing{...}` … `:::` — how a Canvas document arrives in the text
+/// channel. There is no separate textdoc stream to read.
+final RegExp _writing =
+    RegExp(r':::writing\{([^}]*)\}\s*(.*?)\s*:::', dotAll: true);
+final RegExp _titleAttr = RegExp(r'title="([^"]*)"');
 
 // Ordered by precedence: code first so its contents are never re-parsed, then
 // the two-character markers before their one-character counterparts, or `**x**`
