@@ -23,11 +23,17 @@ class DeltaApplier {
       // machinery, so they mutate _lastPath as a side effect. Save and
       // restore it around the loop so a patch never leaks its last
       // sub-delta's path out to whatever implicit-form delta follows it.
+      // The restore runs in `finally` so a throwing sub-delta still leaves
+      // _lastPath consistent — this method's contract is that bad input is
+      // ignored, never fatal, and that must hold for the cursor too.
       final savedLastPath = _lastPath;
-      for (final sub in (value as List)) {
-        if (sub is Map) apply(Map<String, dynamic>.from(sub));
+      try {
+        for (final sub in (value as List)) {
+          if (sub is Map) apply(Map<String, dynamic>.from(sub));
+        }
+      } finally {
+        _lastPath = savedLastPath;
       }
-      _lastPath = savedLastPath;
       return;
     }
 

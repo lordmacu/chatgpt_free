@@ -295,4 +295,58 @@ void main() {
       'assistant',
     );
   });
+
+  // Regression for the fix-round-2 finding: the _lastPath save/restore
+  // around a patch's sub-delta loop must run even if a sub-delta throws.
+  // `sub is Map` only checks the Map interface, not that its keys are
+  // Strings, so a sub-delta with a non-String key passes that check but
+  // makes the recursive apply()'s own `Map<String, dynamic>.from(sub)`
+  // throw a genuine TypeError — no artificial throw added to production
+  // code, this is a real, reachable failure mode for a caller that passes
+  // a malformed delta.
+  test('a throwing sub-delta still restores the pre-patch path (finally)', () {
+    applier.apply({
+      'p': '',
+      'o': 'add',
+      'v': {
+        'message': {
+          'content': {
+            'parts': ['']
+          },
+          'status': 'in_progress'
+        }
+      }
+    });
+    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
+
+    // The first sub-delta succeeds and moves _lastPath to /message/status
+    // as a side effect (mirroring the earlier patch-leak scenario). The
+    // second sub-delta has a non-String key: it passes the `sub is Map`
+    // check in the patch loop but makes the recursive apply()'s own
+    // `Map<String, dynamic>.from(sub)` throw a genuine TypeError before
+    // that recursive call's body ever runs. No throw was added to
+    // production code — this is a real, reachable failure mode for a
+    // caller that passes a malformed delta list.
+    final Map<dynamic, dynamic> subDeltaWithBadKey = <dynamic, dynamic>{1: 'oops'};
+    expect(
+      () => applier.apply({
+        'p': '',
+        'o': 'patch',
+        'v': [
+          {'p': '/message/status', 'o': 'replace', 'v': 'foo'},
+          subDeltaWithBadKey,
+        ],
+      }),
+      throwsA(isA<TypeError>()),
+    );
+
+    // Without the try/finally, _lastPath would still point at
+    // /message/status (the last successful sub-delta's path) here, and this
+    // continuation would corrupt status to 'fooworld' instead of extending
+    // the text.
+    applier.apply({'v': 'world'});
+
+    expect(textOf(applier), 'hello world');
+    expect((applier.document['message'] as Map)['status'], 'foo');
+  });
 }
