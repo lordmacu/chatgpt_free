@@ -21,8 +21,8 @@ class PuaMarker {
   final int end;
 }
 
-final RegExp _structured = RegExp('\u{e200}([^\u{e202}]*)\u{e202}(.*?)\u{e201}',
-    dotAll: true);
+final RegExp _structured =
+    RegExp('\u{e200}([^\u{e202}]*)\u{e202}(.*?)\u{e201}', dotAll: true);
 final RegExp _strayPua = RegExp('[\u{e000}-\u{f8ff}]');
 
 /// Removes every PUA marker, returning text safe to render.

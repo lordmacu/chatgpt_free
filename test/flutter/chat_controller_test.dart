@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:chatgpt_free/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,7 +42,8 @@ void main() {
   // retry() could look for it there. ChatController now remembers the last
   // prompt it attempted itself.
 
-  test('retry() resends the last prompt after a failure '
+  test(
+      'retry() resends the last prompt after a failure '
       '(Final review, Blocker 4)', () async {
     final transport = FakeTransport(fixtures: ['plain_text'])
       ..failures[0] = const TransportException('connection reset');
@@ -62,7 +65,8 @@ void main() {
     expect(controller.messages.last.text.toLowerCase(), contains('hola mundo'));
   });
 
-  test('retry() is a safe no-op when nothing has been sent yet '
+  test(
+      'retry() is a safe no-op when nothing has been sent yet '
       '(Final review, Blocker 4)', () async {
     final transport = FakeTransport();
     final controller =
@@ -75,7 +79,8 @@ void main() {
     expect(transport.sentDeviceIds, isEmpty);
   });
 
-  test('retry() is a safe no-op when the last send already succeeded '
+  test(
+      'retry() is a safe no-op when the last send already succeeded '
       '(Final review, Blocker 4)', () async {
     final transport = FakeTransport();
     final controller =
@@ -154,7 +159,8 @@ void main() {
   // streaming-setter guard.
 
   group('per-turn SendOptions precedence', () {
-    test('omitting options builds SendOptions from the controller\'s own '
+    test(
+        'omitting options builds SendOptions from the controller\'s own '
         'model and webSearch', () async {
       final transport = FakeTransport();
       final controller = ChatController(
@@ -169,7 +175,8 @@ void main() {
       expect(transport.sentBodies.single['force_use_search'], true);
     });
 
-    test('an explicit SendOptions is used verbatim, not merged with the '
+    test(
+        'an explicit SendOptions is used verbatim, not merged with the '
         'controller\'s own settings', () async {
       final transport = FakeTransport();
       final controller = ChatController(
@@ -240,7 +247,8 @@ void main() {
       expect(controller.currentOptions.webSearch, false);
     });
 
-    test('the documented pattern — currentOptions.copyWith(...) — sends '
+    test(
+        'the documented pattern — currentOptions.copyWith(...) — sends '
         'the picker\'s model, not SendOptions\' bare default', () async {
       final transport = FakeTransport();
       final controller = ChatController(
@@ -258,7 +266,8 @@ void main() {
       expect(body['force_use_canvas'], true);
     });
 
-    test('the footgun this fixes: a bare SendOptions(...) literal really '
+    test(
+        'the footgun this fixes: a bare SendOptions(...) literal really '
         'does drop the picker\'s model to auto (documents the hazard '
         'currentOptions exists to avoid)', () async {
       final transport = FakeTransport();
@@ -305,7 +314,8 @@ void main() {
       expect(notified, isTrue);
     });
 
-    test('changing model mid-conversation keeps the transcript and the '
+    test(
+        'changing model mid-conversation keeps the transcript and the '
         'conversation id, not just the local list', () async {
       final transport = FakeTransport();
       final controller = ChatController(
@@ -337,7 +347,8 @@ void main() {
   });
 
   group('mutating settings while a turn is streaming', () {
-    test('setting model while streaming throws StateError and leaves the '
+    test(
+        'setting model while streaming throws StateError and leaves the '
         'in-flight turn untouched', () async {
       final transport = FakeTransport();
       final controller = ChatController(
@@ -369,5 +380,45 @@ void main() {
       controller.stop();
       await future.timeout(const Duration(seconds: 3));
     });
+  });
+
+  test('loadHistory replaces the transcript from the backend', () async {
+    // Anonymous conversations cannot be listed, but they CAN be fetched by id
+    // from the device that created them — this is what lets a conversations
+    // drawer restore real history instead of a local copy.
+    final transport = FakeTransport()
+      ..getResponse = jsonEncode({
+        'title': 'Di solo uno',
+        'current_node': 'c',
+        'mapping': {
+          'a': {
+            'parent': null,
+            'message': {
+              'author': {'role': 'user'},
+              'content': {
+                'parts': ['di solo: uno']
+              }
+            }
+          },
+          'c': {
+            'parent': 'a',
+            'message': {
+              'author': {'role': 'assistant'},
+              'content': {
+                'parts': ['uno']
+              }
+            }
+          },
+        },
+      });
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    // A conversation id only exists after a turn, which the fixture supplies.
+    await controller.send('hola');
+    final title = await controller.loadHistory();
+
+    expect(title, 'Di solo uno');
+    expect(controller.messages.map((m) => m.text), ['di solo: uno', 'uno']);
   });
 }

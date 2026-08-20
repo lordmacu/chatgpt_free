@@ -11,7 +11,8 @@ void main() {
   });
 
   test('strips genui markers too', () {
-    final out = stripPuaMarkers('antes\u{e200}genui\u{e202}{"a":1}\u{e201}después');
+    final out =
+        stripPuaMarkers('antes\u{e200}genui\u{e202}{"a":1}\u{e201}después');
     expect(out, 'antesdespués');
   });
 

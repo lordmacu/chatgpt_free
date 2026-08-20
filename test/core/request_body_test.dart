@@ -76,7 +76,8 @@ void main() {
       'seed',
       'n'
     ]) {
-      expect(body.containsKey(banned), isFalse, reason: '$banned must not be sent');
+      expect(body.containsKey(banned), isFalse,
+          reason: '$banned must not be sent');
     }
   });
 

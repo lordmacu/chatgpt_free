@@ -23,7 +23,8 @@ void main() {
     expect(session.conversationId, 'saved-conversation-id');
   });
 
-  test('ChatGptSession.restore starts fresh when the store is empty '
+  test(
+      'ChatGptSession.restore starts fresh when the store is empty '
       '(Fix round 1, Finding 2)', () async {
     final store = InMemoryStore();
 
@@ -102,7 +103,8 @@ void main() {
   // `!= null` check and becomes this session's device id, landing on the
   // wire as an empty OAI-Device-Id header with no recovery path.
 
-  test('restore treats an empty stored device id as absent, generating a '
+  test(
+      'restore treats an empty stored device id as absent, generating a '
       'fresh one (Final review, minor)', () async {
     final store = InMemoryStore();
     await store.write('device_id', '');
@@ -116,7 +118,8 @@ void main() {
     expect(session.conversationId, isNull);
   });
 
-  test('restore treats an empty stored conversation id as absent '
+  test(
+      'restore treats an empty stored conversation id as absent '
       '(Final review, minor)', () async {
     final store = InMemoryStore();
     await store.write('device_id', 'saved-device-id');

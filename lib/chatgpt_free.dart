@@ -10,3 +10,4 @@ export 'src/core/models/options.dart';
 export 'src/core/session.dart';
 export 'src/core/store.dart';
 export 'src/core/transport.dart';
+export 'src/core/conversation_parser.dart';

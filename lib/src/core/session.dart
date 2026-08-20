@@ -7,6 +7,7 @@ import 'constants.dart';
 import 'events.dart';
 import 'models/models.dart';
 import 'models/options.dart';
+import 'conversation_parser.dart';
 import 'request_body.dart';
 import 'sse/reader.dart';
 import 'sse/turn_parser.dart';
@@ -295,8 +296,16 @@ class ChatGptSession {
     // own placeholder with identical(). A const literal would canonicalize
     // to one shared instance across every call with these exact field
     // values, defeating that entirely.
+    // NOT const, deliberately: the history unwind and the per-delta update
+    // both locate this message with identical(), and a const ChatMessage would
+    // be canonicalised — two placeholders would be the same object and one
+    // turn's unwind would remove another's.
     // ignore: prefer_const_constructors
-    var assistantTurn = ChatMessage(role: 'assistant', text: '', isStreaming: true);
+    var assistantTurn = ChatMessage(
+      role: 'assistant',
+      text: '',
+      isStreaming: true,
+    );
     _history.add(userTurn);
     _history.add(assistantTurn);
 
@@ -334,7 +343,8 @@ class ChatGptSession {
       // Namespaced by this session's own device id — see
       // [_conversationStoreKey] — so [restore] can never hand this
       // conversation id back paired with a different device id.
-      await _store.write(_conversationStoreKey(_deviceId), parser.conversationId);
+      await _store.write(
+          _conversationStoreKey(_deviceId), parser.conversationId);
     }
   }
 
@@ -362,6 +372,31 @@ class ChatGptSession {
         .map((m) => '${m.role == 'user' ? 'User' : 'Assistant'}: ${m.text}')
         .join('\n');
     return '[Prior conversation — use this as context:\n$turns\n]\n\n$message';
+  }
+
+  /// Fetches this conversation from the backend, replacing local history.
+  ///
+  /// Anonymous conversations cannot be listed — `/conversations` answers 200
+  /// with an empty page — but one CAN be read back by id from the device that
+  /// created it; another device gets 404. So an app that remembered a
+  /// conversation id can restore its real transcript, title and all, rather
+  /// than keeping a local copy.
+  ///
+  /// Returns null when this session has no conversation yet.
+  Future<ConversationDetail?> loadHistory() async {
+    final id = _conversationId;
+    if (id == null) return null;
+
+    final detail = parseConversation(
+      await _transport.get('$kAnonPrefix/conversation/$id',
+          deviceId: _deviceId),
+      id: id,
+    );
+    _history
+      ..clear()
+      ..addAll(detail.messages);
+    _firstTurn = false;
+    return detail;
   }
 
   /// Releases the transport, but only if this session created it itself.

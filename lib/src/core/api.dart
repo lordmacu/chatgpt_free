@@ -19,7 +19,8 @@ dynamic _decodeJson(String body) {
   try {
     return jsonDecode(body);
   } on FormatException {
-    throw ProtocolException('response body is not valid JSON: ${_excerpt(body)}');
+    throw ProtocolException(
+        'response body is not valid JSON: ${_excerpt(body)}');
   }
 }
 
@@ -48,7 +49,8 @@ Map<String, dynamic> _requireMap(dynamic decoded, String body) {
 /// in a way this package does not understand, and raising here — instead of
 /// letting an unguarded `as List?` cast throw a raw [TypeError] — is what
 /// lets a consumer catch every parse failure as one [ChatGptException].
-List<dynamic> _listField(Map<String, dynamic> decoded, String field, String body) {
+List<dynamic> _listField(
+    Map<String, dynamic> decoded, String field, String body) {
   final value = decoded[field];
   if (value == null) return const [];
   if (value is List) return value;

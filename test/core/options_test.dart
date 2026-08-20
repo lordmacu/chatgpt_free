@@ -89,8 +89,7 @@ void main() {
       expect(copy.serviceTier, ServiceTier.priority);
     });
 
-    test('replaces exactly the fields given, leaving the rest untouched',
-        () {
+    test('replaces exactly the fields given, leaving the rest untouched', () {
       const base = SendOptions(model: 'auto');
 
       final copy = base.copyWith(

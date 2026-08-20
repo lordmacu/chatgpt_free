@@ -19,7 +19,8 @@ List<String> _runsWithWeight(WidgetTester tester, FontWeight weight) {
 
 Widget _bubble(String text) => MaterialApp(
       home: Scaffold(
-        body: MessageBubble(message: ChatMessage(role: 'assistant', text: text)),
+        body:
+            MessageBubble(message: ChatMessage(role: 'assistant', text: text)),
       ),
     );
 

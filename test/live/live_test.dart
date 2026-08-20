@@ -38,4 +38,20 @@ void main() {
 
     client.close();
   }, timeout: const Timeout(Duration(seconds: 30)));
+
+  test('translate really translates, and spends no chat message', () async {
+    // This is the gap that let a wrong field name ship: translate() was not in
+    // the live suite, so nothing ever sent it to the real backend. The service
+    // takes camelCase (targetLanguageCode), unlike every other endpoint here.
+    final client = ChatGptClient();
+
+    final english = await client.translate('hola mundo', target: 'en');
+    expect(english.toLowerCase(), contains('hello'));
+
+    final french =
+        await client.translate('hola mundo', target: 'fr', source: 'es');
+    expect(french.trim(), isNotEmpty);
+
+    client.close();
+  }, timeout: const Timeout(Duration(seconds: 45)));
 }

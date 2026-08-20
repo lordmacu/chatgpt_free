@@ -72,8 +72,10 @@ void main() {
         }
       }
     });
-    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hola'});
-    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': ' mundo'});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hola'});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'append', 'v': ' mundo'});
 
     expect(textOf(applier), 'hola mundo');
   });
@@ -112,7 +114,8 @@ void main() {
     applier.apply({'p': '/message/content/parts/0', 'o': 'truncate', 'v': 3});
     expect(textOf(applier), 'abc');
 
-    applier.apply({'p': '/message/content/parts/0', 'o': 'replace', 'v': 'zzz'});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'replace', 'v': 'zzz'});
     expect(textOf(applier), 'zzz');
   });
 
@@ -138,7 +141,8 @@ void main() {
       ]
     });
 
-    expect((applier.document['message'] as Map)['status'], 'finished_successfully');
+    expect((applier.document['message'] as Map)['status'],
+        'finished_successfully');
     expect(textOf(applier), 'listo');
   });
 
@@ -188,7 +192,8 @@ void main() {
     applier.apply({'p': '/message/invalid', 'o': 'remove'});
     applier.apply({'p': '/message/never_existed', 'o': 'remove'});
 
-    expect((applier.document['message'] as Map).containsKey('invalid'), isFalse);
+    expect(
+        (applier.document['message'] as Map).containsKey('invalid'), isFalse);
   });
 
   test('an unknown operation is ignored rather than fatal', () {
@@ -203,7 +208,8 @@ void main() {
         }
       }
     });
-    applier.apply({'p': '/message/content/parts/0', 'o': 'teleport', 'v': 'nope'});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'teleport', 'v': 'nope'});
 
     expect(textOf(applier), 'ok');
   });
@@ -213,7 +219,8 @@ void main() {
   // streams do this repeatedly (user -> system rebases -> assistant) before
   // any streamed text arrives. The applier must replace the document at
   // root, not silently drop the swap while the stale message lingers.
-  test('an implicit root swap replaces the message instead of leaving it stale', () {
+  test('an implicit root swap replaces the message instead of leaving it stale',
+      () {
     applier.apply({
       'p': '',
       'o': 'add',
@@ -238,7 +245,8 @@ void main() {
         }
       }
     });
-    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hola mundo'});
+    applier.apply(
+        {'p': '/message/content/parts/0', 'o': 'append', 'v': 'hola mundo'});
 
     expect(textOf(applier), 'hola mundo');
     expect(
@@ -251,7 +259,8 @@ void main() {
   // patch's sub-deltas must not leak _lastPath past the patch. A bare
   // continuation delta right after a patch should land on the path that was
   // active before the patch, not on whatever the last sub-delta touched.
-  test('a patch restores the pre-patch path for the next implicit continuation', () {
+  test('a patch restores the pre-patch path for the next implicit continuation',
+      () {
     applier.apply({
       'p': '',
       'o': 'add',
@@ -264,7 +273,8 @@ void main() {
         }
       }
     });
-    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
     applier.apply({
       'p': '',
       'o': 'patch',
@@ -282,7 +292,8 @@ void main() {
   // (plain_text.sse) through the applier end-to-end and check the final
   // assembled text is exactly the assistant's reply, with no user-prompt
   // prefix left over from the message the stream started with.
-  test('folds a captured stream into the assistant reply with no stale prefix', () {
+  test('folds a captured stream into the assistant reply with no stale prefix',
+      () {
     final content = File('test/fixtures/plain_text.sse').readAsStringSync();
 
     for (final delta in _deltaFramesFrom(content)) {
@@ -317,7 +328,8 @@ void main() {
         }
       }
     });
-    applier.apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
+    applier
+        .apply({'p': '/message/content/parts/0', 'o': 'append', 'v': 'hello '});
 
     // The first sub-delta succeeds and moves _lastPath to /message/status
     // as a side effect (mirroring the earlier patch-leak scenario). The
@@ -327,7 +339,9 @@ void main() {
     // that recursive call's body ever runs. No throw was added to
     // production code — this is a real, reachable failure mode for a
     // caller that passes a malformed delta list.
-    final Map<dynamic, dynamic> subDeltaWithBadKey = <dynamic, dynamic>{1: 'oops'};
+    final Map<dynamic, dynamic> subDeltaWithBadKey = <dynamic, dynamic>{
+      1: 'oops'
+    };
     expect(
       () => applier.apply({
         'p': '',

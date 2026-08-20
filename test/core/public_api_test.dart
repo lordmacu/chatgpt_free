@@ -47,8 +47,7 @@ class _StubTransport implements Transport {
 void main() {
   test(
       'every type appearing in a public constructor or method signature is '
-      'reachable from the public library alone (Final review, Blocker 1)',
-      () {
+      'reachable from the public library alone (Final review, Blocker 1)', () {
     // Constructing for real — not just naming the type — is what forces a
     // compile error if the export is missing.
     final transport = _StubTransport();
@@ -64,15 +63,16 @@ void main() {
     session.close();
   });
 
-  test('HttpTransport, the concrete Transport this package ships, is also '
-      'reachable from the public library alone (Final review, Blocker 1)',
-      () {
+  test(
+      'HttpTransport, the concrete Transport this package ships, is also '
+      'reachable from the public library alone (Final review, Blocker 1)', () {
     final transport = HttpTransport();
     expect(transport, isA<Transport>());
     transport.close();
   });
 
-  test('ChatGptClient and ChatGptSession are reachable from the public '
+  test(
+      'ChatGptClient and ChatGptSession are reachable from the public '
       'library alone', () {
     // Constructing for real (not just referencing the type) is what forces
     // a compile error if the export is missing — a bare type annotation can
@@ -87,13 +87,15 @@ void main() {
     client.close();
   });
 
-  test('every other type the README references resolves from the public '
+  test(
+      'every other type the README references resolves from the public '
       'library too', () {
     // One line per README-referenced type. If any of these were only
     // reachable via `src/...`, this file would fail to compile.
     final ChatGptStore store = InMemoryStore();
     const SendOptions options = SendOptions();
-    const TextAttachment attachment = TextAttachment(name: 'a.txt', content: 'x');
+    const TextAttachment attachment =
+        TextAttachment(name: 'a.txt', content: 'x');
     const ChatEvent event = TextDelta('hi');
     const ModelDowngraded downgraded =
         ModelDowngraded(requested: 'gpt-5-6', actual: 'gpt-5-6-mini');

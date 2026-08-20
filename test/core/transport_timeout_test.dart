@@ -32,8 +32,7 @@ void main() {
     );
 
     await expectLater(
-      transport.stream('/backend-anon/f/conversation', const {},
-          deviceId: 'd'),
+      transport.stream('/backend-anon/f/conversation', const {}, deviceId: 'd'),
       throwsA(isA<TransportException>()
           .having((e) => e.message, 'message', contains('response headers'))),
     );

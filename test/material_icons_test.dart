@@ -12,7 +12,8 @@ void main() {
   test('the package declares uses-material-design', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     expect(pubspec, contains('uses-material-design: true'),
-        reason: 'this package ships widgets that use Material icons, so it must '
+        reason:
+            'this package ships widgets that use Material icons, so it must '
             'declare the font or every consumer gets broken glyphs');
   });
 

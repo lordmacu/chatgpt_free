@@ -106,3 +106,28 @@ class ChatMessage {
         isStreaming: isStreaming ?? this.isStreaming,
       );
 }
+
+/// A conversation as the backend has it, fetched by id.
+///
+/// Anonymous conversations are NOT listable — `/conversations` answers 200
+/// with an empty page — but a conversation can be fetched by id from the very
+/// device that created it. Another device gets 404 "Log in to view this
+/// conversation". That is why [ChatGptStore] persists the device id alongside
+/// the conversation id: without the former, the latter is unreadable.
+class ConversationDetail {
+  /// Creates a conversation detail.
+  const ConversationDetail({
+    required this.id,
+    required this.messages,
+    this.title,
+  });
+
+  /// Server-side conversation id.
+  final String id;
+
+  /// Every turn, oldest first.
+  final List<ChatMessage> messages;
+
+  /// The title the backend generated for it.
+  final String? title;
+}

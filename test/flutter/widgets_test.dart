@@ -25,7 +25,8 @@ void main() {
     ));
 
     final container = tester.widget<Container>(find
-        .descendant(of: find.byType(MessageBubble), matching: find.byType(Container))
+        .descendant(
+            of: find.byType(MessageBubble), matching: find.byType(Container))
         .first);
     final decoration = container.decoration as BoxDecoration;
 
@@ -41,7 +42,8 @@ void main() {
     expect(find.byType(MessageBubble), findsNWidgets(2));
   });
 
-  testWidgets('MessageComposer reports submitted text and clears', (tester) async {
+  testWidgets('MessageComposer reports submitted text and clears',
+      (tester) async {
     final sent = <String>[];
     await tester.pumpWidget(_wrap(MessageComposer(onSend: sent.add)));
 
@@ -50,7 +52,8 @@ void main() {
     await tester.pump();
 
     expect(sent, ['hola']);
-    expect(tester.widget<TextField>(find.byType(TextField)).controller!.text, '');
+    expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text, '');
   });
 
   testWidgets('MessageComposer is inert while disabled', (tester) async {
@@ -82,7 +85,8 @@ void main() {
   // Appended in Fix round 1: ChatView is the package's flagship convenience
   // widget and previously had zero coverage.
 
-  testWidgets('ChatView renders the transcript, disables the composer '
+  testWidgets(
+      'ChatView renders the transcript, disables the composer '
       'while streaming, and shows a downgrade notice', (tester) async {
     final transport = FakeTransport();
     final controller = ChatController(
@@ -162,11 +166,13 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('ChatView keeps the composer inside the safe area', (tester) async {
+  testWidgets('ChatView keeps the composer inside the safe area',
+      (tester) async {
     // Regression: ChatView was a bare Column, so on a gesture-nav device the
     // composer rendered behind the system navigation bar and the send button
     // could not be tapped. Caught only by installing on a real phone.
-    final controller = ChatController(client: ChatGptClient(transport: FakeTransport()));
+    final controller =
+        ChatController(client: ChatGptClient(transport: FakeTransport()));
     addTearDown(controller.dispose);
 
     await tester.pumpWidget(MaterialApp(
@@ -183,7 +189,8 @@ void main() {
     );
   });
 
-  testWidgets('a citation with no handler is not a fake button', (tester) async {
+  testWidgets('a citation with no handler is not a fake button',
+      (tester) async {
     // Regression: CitationChips used an ActionChip with an empty onPressed, so
     // a source looked tappable and did nothing — reported on device as "it made
     // a button" that responded to nothing.
@@ -200,7 +207,9 @@ void main() {
       (tester) async {
     final tapped = <Citation>[];
     await tester.pumpWidget(_wrap(CitationChips(
-      citations: const [Citation(title: 'Visor Sismos', url: 'https://sgc.gov.co')],
+      citations: const [
+        Citation(title: 'Visor Sismos', url: 'https://sgc.gov.co')
+      ],
       onTap: tapped.add,
     )));
 

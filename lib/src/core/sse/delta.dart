@@ -14,7 +14,8 @@ class DeltaApplier {
   /// Applies one delta. Unknown operations and paths are ignored, never fatal —
   /// the protocol grows without warning and a new channel must not kill a turn.
   void apply(Map<String, dynamic> delta) {
-    final op = (delta['o'] ?? delta['operation'] ?? '').toString().toLowerCase();
+    final op =
+        (delta['o'] ?? delta['operation'] ?? '').toString().toLowerCase();
     final rawPath = delta['p'] ?? delta['path'];
     final value = delta.containsKey('v') ? delta['v'] : delta['value'];
 

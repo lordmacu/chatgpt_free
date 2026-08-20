@@ -89,8 +89,7 @@ class ChatGptClient {
         return;
       } on RateLimitedException catch (e) {
         if (rotations >= maxRotations) {
-          throw QuotaExceededException(
-              'quota still exhausted after $rotations '
+          throw QuotaExceededException('quota still exhausted after $rotations '
               '${rotations == 1 ? 'rotation' : 'rotations'}: ${e.message}');
         }
         rotations++;
@@ -135,9 +134,13 @@ class ChatGptClient {
       parseTranslation(await _transport.post(
         '$kAnonPrefix/language-learning-block/translate',
         {
+          // camelCase, unlike every other endpoint in this API. Sending
+          // `target_language` is HTTP 422 "Field required: targetLanguageCode"
+          // — the translate service does not share the conversation
+          // endpoint's snake_case convention.
           'text': text,
-          'target_language': target,
-          if (source != null) 'source_language': source,
+          'targetLanguageCode': target,
+          if (source != null) 'sourceLanguageCode': source,
         },
         deviceId: _probeDeviceId,
       ));

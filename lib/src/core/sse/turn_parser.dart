@@ -286,7 +286,10 @@ class TurnParser {
     final queries = searchModelQueries['queries'];
     if (queries is! List || queries.isEmpty) return;
 
-    final strings = [for (final q in queries) if (q is String) q];
+    final strings = [
+      for (final q in queries)
+        if (q is String) q
+    ];
     if (strings.isEmpty) return;
 
     _searchStartedReported = true;

@@ -1,5 +1,8 @@
-import 'package:chatgpt_free/widgets.dart';
+import 'package:chatgpt_free/chatgpt_free.dart';
 import 'package:flutter/material.dart';
+
+import 'chat_screen.dart';
+import 'translate_screen.dart';
 
 void main() => runApp(const ExampleApp());
 
@@ -13,7 +16,7 @@ const List<String> kAvailableModels = [
   'gpt-5-3-mini',
 ];
 
-/// Demo app: a chat with no API key and no account.
+/// Demo app: chat and translation with no API key and no account.
 class ExampleApp extends StatelessWidget {
   /// Creates the app.
   const ExampleApp({super.key});
@@ -25,153 +28,62 @@ class ExampleApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF00B899)),
           useMaterial3: true,
         ),
-        home: const ChatScreen(),
+        home: const HomeScreen(),
       );
 }
 
-/// The one screen this demo has.
-class ChatScreen extends StatefulWidget {
-  /// Creates the screen.
-  const ChatScreen({super.key});
+/// Two tabs over one client.
+///
+/// Translation lives on its own tab rather than as a chat action because it
+/// hits a different endpoint and spends no message from the anonymous quota —
+/// it keeps working after the chat has hit its hourly cap, and it does not
+/// need a conversation to exist first.
+class HomeScreen extends StatefulWidget {
+  /// Creates the home.
+  const HomeScreen({super.key});
 
   @override
-  State<ChatScreen> createState() => _ChatScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> {
-  // The example owns the client so it can reach the core API — translate()
-  // in particular, which the Flutter layer does not wrap because it is not
-  // part of a chat turn (and notably spends no message from the quota).
+class _HomeScreenState extends State<HomeScreen> {
+  // One client for both tabs: a session's quota and rotation state live in the
+  // client, so handing each tab its own would double the device ids in play.
   final ChatGptClient _client = ChatGptClient();
-  late final ChatController _controller = ChatController(
-    client: _client,
-    systemPrompt: 'Answer briefly.',
-  );
+  int _tab = 0;
 
   @override
   void dispose() {
-    _controller.dispose();
-    // The controller only closes a client it created itself, so this one is
-    // ours to close.
     _client.close();
     super.dispose();
   }
 
-  String? get _lastReply {
-    for (final m in _controller.messages.reversed) {
-      if (m.role == 'assistant' && m.text.trim().isNotEmpty) return m.text;
-    }
-    return null;
-  }
-
-  Future<void> _translateLastReply() async {
-    final reply = _lastReply;
-    final messenger = ScaffoldMessenger.of(context);
-    if (reply == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Nothing to translate yet.')),
-      );
-      return;
-    }
-    try {
-      final english = await _client.translate(reply, target: 'en');
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Translated to English'),
-          content: SingleChildScrollView(child: SelectableText(english)),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
-            ),
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        // IndexedStack, not a switch on _tab: it keeps the chat's transcript
+        // and the translation's text alive while the other tab is on screen.
+        body: IndexedStack(
+          index: _tab,
+          children: [
+            TranslateScreen(client: _client),
+            ChatScreen(client: _client),
           ],
         ),
-      );
-    } on ChatGptException catch (e) {
-      messenger.showSnackBar(SnackBar(content: Text(e.message)));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        // Rebuilds the app bar too (not just ChatView) so the model picker
-        // and web-search toggle below can grey themselves out while a turn
-        // is streaming — ChatController.model/webSearch throw StateError if
-        // set at that point, since the change could never reach the reply
-        // already in flight. Disabling the controls is how this example
-        // avoids ever hitting that guard.
-        animation: _controller,
-        builder: (context, _) => Scaffold(
-          appBar: AppBar(
-            title: const Text('chatgpt_free'),
-            actions: [
-              // isSelected + a filled style, not two near-identical icon
-              // variants: travel_explore and travel_explore_outlined look the
-              // same at AppBar size, so the toggle appeared not to respond.
-              IconButton(
-                tooltip: _controller.webSearch == true
-                    ? 'Web search: on'
-                    : 'Web search: off',
-                isSelected: _controller.webSearch == true,
-                selectedIcon: const Icon(Icons.travel_explore),
-                icon: const Icon(Icons.travel_explore_outlined),
-                style: IconButton.styleFrom(
-                  backgroundColor: _controller.webSearch == true
-                      ? Theme.of(context).colorScheme.primaryContainer
-                      : null,
-                  foregroundColor: _controller.webSearch == true
-                      ? Theme.of(context).colorScheme.onPrimaryContainer
-                      : null,
-                ),
-                onPressed: _controller.isStreaming
-                    ? null
-                    : () => _controller.webSearch =
-                        !(_controller.webSearch ?? false),
-              ),
-              PopupMenuButton<String>(
-                tooltip: 'Model: ${_controller.model}',
-                enabled: !_controller.isStreaming,
-                initialValue: _controller.model,
-                onSelected: (model) => _controller.model = model,
-                itemBuilder: (context) => [
-                  for (final model in kAvailableModels)
-                    PopupMenuItem(value: model, child: Text(model)),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_controller.model,
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
-                ),
-              ),
-              IconButton(
-                tooltip: 'Translate the last reply to English',
-                onPressed: _controller.isStreaming ? null : _translateLastReply,
-                icon: const Icon(Icons.translate),
-              ),
-              // A refresh arrow reads as "retry", not "start over", and on
-              // mobile a tooltip needs a long-press to appear at all.
-              IconButton(
-                tooltip: 'New conversation',
-                onPressed: _controller.clear,
-                icon: const Icon(Icons.add_comment_outlined),
-              ),
-            ],
-          ),
-          body: ChatView(
-            controller: _controller,
-            // No url_launcher dependency in this package, so the example shows
-            // the source rather than opening it.
-            onCitationTap: (citation) => ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(citation.url))),
-          ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _tab,
+          onDestinationSelected: (i) => setState(() => _tab = i),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.translate_outlined),
+              selectedIcon: Icon(Icons.translate),
+              label: 'Translate',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.chat_bubble_outline),
+              selectedIcon: Icon(Icons.chat_bubble),
+              label: 'Chat',
+            ),
+          ],
         ),
       );
 }

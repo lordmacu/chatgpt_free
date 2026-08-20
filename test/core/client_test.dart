@@ -10,8 +10,7 @@ void main() {
     final session = ChatGptSession(transport: transport);
     final client = ChatGptClient(transport: transport);
 
-    final events =
-        await client.sendWithRotation(session, 'hola').toList();
+    final events = await client.sendWithRotation(session, 'hola').toList();
 
     expect(events.whereType<QuotaRotated>(), hasLength(1));
     expect(
@@ -67,7 +66,8 @@ void main() {
   // sustained load. maxRotations lets an app opt into retrying more than
   // once; it defaults to 1 so existing behaviour is unchanged.
 
-  test('maxRotations defaults to 1 — the pre-existing rotate-once behaviour '
+  test(
+      'maxRotations defaults to 1 — the pre-existing rotate-once behaviour '
       'is unchanged', () async {
     final transport = FakeTransport(fixtures: ['plain_text'])
       ..failures[0] = const RateLimitedException('limit')
@@ -83,8 +83,7 @@ void main() {
     expect(transport.sentDeviceIds.length, 2);
   });
 
-  test('a higher maxRotations keeps rotating past the first retry',
-      () async {
+  test('a higher maxRotations keeps rotating past the first retry', () async {
     final transport = FakeTransport(fixtures: ['plain_text'])
       ..failures[0] = const RateLimitedException('limit 1')
       ..failures[1] = const RateLimitedException('limit 2')
@@ -93,8 +92,7 @@ void main() {
     final session = ChatGptSession(transport: transport);
     final client = ChatGptClient(transport: transport, maxRotations: 3);
 
-    final events =
-        await client.sendWithRotation(session, 'hola').toList();
+    final events = await client.sendWithRotation(session, 'hola').toList();
 
     expect(events.whereType<QuotaRotated>(), hasLength(3));
     expect(
@@ -107,7 +105,8 @@ void main() {
         reason: 'every attempt must use a distinct, freshly rotated device');
   });
 
-  test('maxRotations exhausted: QuotaExceededException names how many '
+  test(
+      'maxRotations exhausted: QuotaExceededException names how many '
       'rotations were attempted', () async {
     final transport = FakeTransport(fixtures: ['plain_text'])
       ..failures[0] = const RateLimitedException('limit 1')

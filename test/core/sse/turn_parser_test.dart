@@ -11,8 +11,7 @@ Stream<SseFrame> framesOf(String fixture) =>
 void main() {
   test('plain text: assembles the reply and completes', () async {
     final parser = TurnParser(requestedModel: 'auto');
-    final events =
-        await parser.parse(framesOf('plain_text')).toList();
+    final events = await parser.parse(framesOf('plain_text')).toList();
 
     final text = events.whereType<TextDelta>().map((e) => e.text).join();
     // Equality, not containment: a delta applier that leaks the echoed user
@@ -107,13 +106,15 @@ void main() {
     // No captured fixture contains one, so drive the parser directly.
     final parser = TurnParser(requestedModel: 'auto');
     final frames = Stream.fromIterable([
-      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
-          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"content":'
+              '{"parts":[""]},"metadata":{}}}}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '"antes\\ue200genui\\ue202{\\"name\\":\\"weather\\",'
-          '\\"data\\":{\\"c\\":21}}\\ue201después"}'),
+              '"antes\\ue200genui\\ue202{\\"name\\":\\"weather\\",'
+              '\\"data\\":{\\"c\\":21}}\\ue201después"}'),
     ]);
 
     final events = await parser.parse(frames).toList();
@@ -126,8 +127,7 @@ void main() {
     expect(text, 'antesdespués');
   });
 
-  test(
-      'recovers cleanly when a PUA marker is split across two SSE chunks',
+  test('recovers cleanly when a PUA marker is split across two SSE chunks',
       () async {
     // Regression for fix round 1, finding 1: the open half of a structured
     // marker (\ue200cite\ue202turn0search0) lands in one delta, the close
@@ -140,12 +140,14 @@ void main() {
     // cursor and silently dropping everything appended after that point.
     final parser = TurnParser(requestedModel: 'auto');
     final frames = Stream.fromIterable([
-      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
-          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"content":'
+              '{"parts":[""]},"metadata":{}}}}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '"hello \\ue200cite\\ue202turn0search0"}'),
+              '"hello \\ue200cite\\ue202turn0search0"}'),
       const SseFrame('delta', '{"v":"\\ue201 world"}'),
       const SseFrame('delta', '{"v":" more text after"}'),
     ]);
@@ -173,13 +175,13 @@ void main() {
       const SseFrame(
           'delta',
           '{"p":"","o":"add","v":{"message":{"content":{"parts":[""]},'
-          '"metadata":{"content_references":[{"items":[{"title":'
-          '"Old Title","url":"https://example.com/a",'
-          '"attribution":"Old Attribution"}]}]}}}}'),
+              '"metadata":{"content_references":[{"items":[{"title":'
+              '"Old Title","url":"https://example.com/a",'
+              '"attribution":"Old Attribution"}]}]}}}}'),
       const SseFrame(
           'delta',
           '{"p":"/message/metadata/content_references/0/items/0/title",'
-          '"o":"replace","v":"New Title"}'),
+              '"o":"replace","v":"New Title"}'),
     ]);
 
     final events = await parser.parse(frames).toList();
@@ -206,13 +208,13 @@ void main() {
       const SseFrame(
           'delta',
           '{"p":"","o":"add","v":{"message":{"author":{"role":"user"},'
-          '"content":{"parts":["hi"]},"metadata":{"resolved_model_slug":'
-          '"user-side-bogus-model"}}}}'),
+              '"content":{"parts":["hi"]},"metadata":{"resolved_model_slug":'
+              '"user-side-bogus-model"}}}}'),
       const SseFrame(
           'delta',
           '{"v":{"message":{"author":{"role":"assistant"},"content":'
-          '{"parts":[""]},"metadata":{"model_slug":'
-          '"assistant-real-model"}}}}'),
+              '{"parts":[""]},"metadata":{"model_slug":'
+              '"assistant-real-model"}}}}'),
     ]);
 
     final events = await parser.parse(frames).toList();
@@ -243,24 +245,27 @@ void main() {
     return text;
   }
 
-  test('a replace that shortens the reply mid-stream resyncs instead of '
+  test(
+      'a replace that shortens the reply mid-stream resyncs instead of '
       'freezing', () async {
     final parser = TurnParser(requestedModel: 'auto');
     final frames = Stream.fromIterable([
-      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
-          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"content":'
+              '{"parts":[""]},"metadata":{}}}}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '"This is a much longer draft that will be replaced"}'),
+              '"This is a much longer draft that will be replaced"}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"replace","v":'
-          '"Short answer"}'),
+              '"Short answer"}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '", now finalized."}'),
+              '", now finalized."}'),
     ]);
 
     final events = await parser.parse(frames).toList();
@@ -269,23 +274,25 @@ void main() {
     expect(reconstruct(deltas), 'Short answer, now finalized.');
   });
 
-  test('a truncate that shortens the reply mid-stream resyncs instead of '
+  test(
+      'a truncate that shortens the reply mid-stream resyncs instead of '
       'freezing', () async {
     final parser = TurnParser(requestedModel: 'auto');
     final frames = Stream.fromIterable([
-      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
-          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"content":'
+              '{"parts":[""]},"metadata":{}}}}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '"Hello wonderful world"}'),
+              '"Hello wonderful world"}'),
       const SseFrame(
-          'delta',
-          '{"p":"/message/content/parts/0","o":"truncate","v":5}'),
+          'delta', '{"p":"/message/content/parts/0","o":"truncate","v":5}'),
       const SseFrame(
           'delta',
           '{"p":"/message/content/parts/0","o":"append","v":'
-          '" there, everyone!"}'),
+              '" there, everyone!"}'),
     ]);
 
     final events = await parser.parse(frames).toList();

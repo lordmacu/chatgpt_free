@@ -153,7 +153,8 @@ class ChatController extends ChangeNotifier {
   /// `controller.send(text, options: controller.currentOptions.copyWith(canvas:
   /// true))` changes only `canvas` for that turn and keeps whatever model
   /// is actually selected.
-  SendOptions get currentOptions => SendOptions(model: _model, webSearch: _webSearch);
+  SendOptions get currentOptions =>
+      SendOptions(model: _model, webSearch: _webSearch);
 
   /// Sends [text] and streams the reply into [messages].
   ///
@@ -196,11 +197,11 @@ class ChatController extends ChangeNotifier {
     _pendingSend = completer;
     _subscription = _client
         .sendWithRotation(
-          _session,
-          text,
-          options: options ?? currentOptions,
-          attachments: attachments,
-        )
+      _session,
+      text,
+      options: options ?? currentOptions,
+      attachments: attachments,
+    )
         .listen(
       (event) {
         if (event is ModelDowngraded) {
@@ -237,6 +238,29 @@ class ChatController extends ChangeNotifier {
     final completer = _pendingSend;
     _pendingSend = null;
     if (completer != null && !completer.isCompleted) completer.complete();
+  }
+
+  /// Re-fetches this conversation from the backend, replacing the transcript.
+  ///
+  /// Anonymous conversations cannot be listed, but one CAN be read back by id
+  /// from the device that created it — so an app that switched away and back
+  /// can restore the real transcript instead of trusting a local copy.
+  /// A no-op while a turn is streaming, and when no conversation exists yet.
+  ///
+  /// Returns the backend's title for the conversation, when it has one.
+  Future<String?> loadHistory() async {
+    if (_isStreaming) return null;
+    try {
+      final detail = await _session.loadHistory();
+      _messages = _session.history;
+      _error = null;
+      notifyListeners();
+      return detail?.title;
+    } on ChatGptException catch (e) {
+      _error = e;
+      notifyListeners();
+      return null;
+    }
   }
 
   /// Cancels the turn in flight.

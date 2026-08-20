@@ -75,7 +75,8 @@ void main() {
     expect(session.conversationId, isNotEmpty);
 
     await session.send('dos').drain<void>();
-    expect(transport.sentBodies.last['conversation_id'], session.conversationId);
+    expect(
+        transport.sentBodies.last['conversation_id'], session.conversationId);
   });
 
   test('validates options before touching the transport', () async {
@@ -109,7 +110,8 @@ void main() {
   // device_id, which is the entire premise of the rotation feature, so
   // limits() belongs on the session itself.
 
-  test("limits() reports on this session's own device id, not a probe "
+  test(
+      "limits() reports on this session's own device id, not a probe "
       '(Final review, Blocker 5)', () async {
     final transport = FakeTransport()
       ..getResponse = jsonEncode({
@@ -125,7 +127,8 @@ void main() {
     expect(transport.sentPostDeviceIds, [session.deviceId]);
   });
 
-  test('limits() reflects the device id after a rotation, not the '
+  test(
+      'limits() reflects the device id after a rotation, not the '
       'abandoned one (Final review, Blocker 5)', () async {
     final transport = FakeTransport()..getResponse = jsonEncode({});
     final session = ChatGptSession(transport: transport);
@@ -156,11 +159,9 @@ void main() {
     final transport = FakeTransport();
     final session = ChatGptSession(transport: transport);
 
-    await session
-        .send('resume esto', attachments: const [
-          TextAttachment(name: 'a.txt', content: 'contenido secreto')
-        ])
-        .drain<void>();
+    await session.send('resume esto', attachments: const [
+      TextAttachment(name: 'a.txt', content: 'contenido secreto')
+    ]).drain<void>();
 
     final parts = ((transport.sentBodies.single['messages'] as List).single
         as Map)['content'] as Map;
