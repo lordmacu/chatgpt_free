@@ -102,4 +102,102 @@ void main() {
     final text = events.whereType<TextDelta>().map((e) => e.text).join();
     expect(text, 'antesdespués');
   });
+
+  test(
+      'recovers cleanly when a PUA marker is split across two SSE chunks',
+      () async {
+    // Regression for fix round 1, finding 1: the open half of a structured
+    // marker (\ue200cite\ue202turn0search0) lands in one delta, the close
+    // half (\ue201) in the next. Between those two frames the marker is
+    // incomplete, so stripPuaMarkers can only remove the stray control
+    // characters — the kind/ref payload sits in plain text until the
+    // marker closes. A naive length-diff over that intermediate state
+    // treats the payload as already-emitted, then the cleaned text
+    // *shrinks* once the marker completes, permanently desyncing the
+    // cursor and silently dropping everything appended after that point.
+    final parser = TurnParser(requestedModel: 'auto');
+    final frames = Stream.fromIterable([
+      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
+          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"append","v":'
+          '"hello \\ue200cite\\ue202turn0search0"}'),
+      const SseFrame('delta', '{"v":"\\ue201 world"}'),
+      const SseFrame('delta', '{"v":" more text after"}'),
+    ]);
+
+    final events = await parser.parse(frames).toList();
+    final text = events.whereType<TextDelta>().map((e) => e.text).join();
+
+    expect(text, 'hello  world more text after');
+    expect(text, isNot(contains('cite')));
+    expect(text, isNot(contains('turn0search0')));
+    expect(text.codeUnits.any((c) => c >= 0xE000 && c <= 0xF8FF), isFalse);
+  });
+
+  test(
+      'emits CitationsReceived again when an existing citation changes '
+      'in place', () async {
+    // Regression for fix round 1, finding 2: web_search.sse line 81 patches
+    // citation 0's attribution without changing the citation count — the
+    // bug (comparing list length only) masks this in the fixture only
+    // because that same patch also happens to append a second citation.
+    // This drives the in-place change in isolation, with the count held
+    // at one throughout, so a length-only comparison cannot see it.
+    final parser = TurnParser(requestedModel: 'auto');
+    final frames = Stream.fromIterable([
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"content":{"parts":[""]},'
+          '"metadata":{"content_references":[{"items":[{"title":'
+          '"Old Title","url":"https://example.com/a",'
+          '"attribution":"Old Attribution"}]}]}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/metadata/content_references/0/items/0/title",'
+          '"o":"replace","v":"New Title"}'),
+    ]);
+
+    final events = await parser.parse(frames).toList();
+    final receipts = events.whereType<CitationsReceived>().toList();
+
+    expect(receipts, hasLength(2));
+    expect(receipts.first.citations.single.title, 'Old Title');
+    expect(receipts.last.citations.single.title, 'New Title');
+  });
+
+  test(
+      'ModelDowngraded and actualModel reflect the assistant model, not '
+      'the echoed user message', () async {
+    // Regression for fix round 1, finding 3: _rawText was gated on
+    // author.role to stop the user's echoed prompt leaking into the reply
+    // text, but _emitDowngrade read model_slug/resolved_model_slug from
+    // whichever message currently occupied the shared document slot with
+    // no such gate. Here the user-echo message and the assistant message
+    // carry different, deliberately distinct slugs, none equal to each
+    // other, so a downgrade decision made from the wrong message is
+    // directly observable.
+    final parser = TurnParser(requestedModel: 'requested-model-x');
+    final frames = Stream.fromIterable([
+      const SseFrame(
+          'delta',
+          '{"p":"","o":"add","v":{"message":{"author":{"role":"user"},'
+          '"content":{"parts":["hi"]},"metadata":{"resolved_model_slug":'
+          '"user-side-bogus-model"}}}}'),
+      const SseFrame(
+          'delta',
+          '{"v":{"message":{"author":{"role":"assistant"},"content":'
+          '{"parts":[""]},"metadata":{"model_slug":'
+          '"assistant-real-model"}}}}'),
+    ]);
+
+    final events = await parser.parse(frames).toList();
+    final done = events.whereType<TurnCompleted>().single;
+    final downgrades = events.whereType<ModelDowngraded>().toList();
+
+    expect(done.actualModel, 'assistant-real-model');
+    expect(downgrades, hasLength(1));
+    expect(downgrades.single.actual, 'assistant-real-model');
+  });
 }

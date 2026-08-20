@@ -138,11 +138,34 @@ class TurnParser {
   }
 
   Stream<ChatEvent> _emitTextDelta() async* {
-    final clean = stripPuaMarkers(_rawText);
+    // A structured marker can arrive split across two SSE chunks: the
+    // opening \uE200/kind/\uE202/ref lands in one delta, the closing
+    // \uE201 in the next. Between those two frames stripPuaMarkers cannot
+    // recognise the marker yet — it only removes the lone control
+    // characters and leaves the kind/ref payload sitting in plain text.
+    // Once the marker closes, that whole stretch collapses to nothing, so
+    // anything already emitted from it would need to be retracted — which
+    // a plain append-only TextDelta stream cannot do. So: never strip or
+    // emit past an unterminated marker; wait for it to close first. This
+    // keeps the cleaned prefix monotonically growing, which is what the
+    // length-diff below assumes.
+    final raw = _rawText;
+    final safe = raw.substring(0, _safeTextBoundary(raw));
+    final clean = stripPuaMarkers(safe);
     if (clean.length <= _emittedText.length) return;
     final delta = clean.substring(_emittedText.length);
     _emittedText = clean;
     if (delta.isNotEmpty) yield TextDelta(delta);
+  }
+
+  /// The index in [raw] up to which text is safe to strip and display —
+  /// i.e. before any structured marker that has opened (`\uE200`) but not
+  /// yet closed (`\uE201`).
+  int _safeTextBoundary(String raw) {
+    final markers = findPuaMarkers(raw);
+    final searchFrom = markers.isEmpty ? 0 : markers.last.end;
+    final openStart = raw.indexOf('\u{e200}', searchFrom);
+    return openStart == -1 ? raw.length : openStart;
   }
 
   Stream<ChatEvent> _emitCitations() async* {
@@ -169,15 +192,42 @@ class TurnParser {
         ));
       }
     }
-    if (found.length != citations.length) {
+    if (!_citationsEqual(found, citations)) {
       citations = found;
       yield CitationsReceived(List.unmodifiable(found));
     }
   }
 
+  /// Whether [a] and [b] carry the same citations in the same order.
+  ///
+  /// A count-only comparison misses an existing citation being patched in
+  /// place (e.g. its attribution corrected after the fact) — real traffic
+  /// does exactly this, it is just masked in some captures by a citation
+  /// count change landing in the same patch.
+  bool _citationsEqual(List<Citation> a, List<Citation> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i].title != b[i].title ||
+          a[i].url != b[i].url ||
+          a[i].attribution != b[i].attribution) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   Stream<ChatEvent> _emitDowngrade() async* {
     final message = _applier.document['message'];
     if (message is! Map) return;
+    // Same reasoning as _rawText: the shared document slot briefly holds
+    // the echoed user message (and hidden system messages) before the
+    // assistant's own message takes over. Reading model_slug from
+    // whichever message happens to occupy the slot means the downgrade
+    // decision — and actualModel — could be made from the user's turn
+    // metadata instead of the model that actually answered.
+    final author = message['author'];
+    final authorRole = author is Map ? author['role'] : null;
+    if (authorRole is String && authorRole != 'assistant') return;
     final metadata = message['metadata'];
     if (metadata is! Map) return;
     final slug = metadata['model_slug'] ?? metadata['resolved_model_slug'];
