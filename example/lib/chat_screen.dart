@@ -1,5 +1,6 @@
 import 'package:chatgpt_free/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'main.dart' show kAvailableModels;
 
@@ -83,6 +84,22 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   ChatController get _controller => _conversations[_active].controller;
+
+  /// Opens a cited source in the browser.
+  ///
+  /// url_launcher is a dependency of THIS APP, not of the package: a widget
+  /// library should not decide how its consumer opens links, which is why
+  /// [ChatView.onCitationTap] is a callback.
+  Future<void> _openSource(BuildContext context, Citation citation) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uri = Uri.tryParse(citation.url);
+    if (uri == null ||
+        !await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Could not open ${citation.url}')),
+      );
+    }
+  }
 
   void _startConversation() {
     setState(() {
@@ -194,10 +211,8 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           body: ChatView(
             controller: _controller,
-            // This package ships no url_launcher dependency, so the example
-            // shows the source rather than opening it.
-            onCitationTap: (citation) => ScaffoldMessenger.of(context)
-                .showSnackBar(SnackBar(content: Text(citation.url))),
+            onCitationTap: (citation) => _openSource(context, citation),
+            onStartNewConversation: _startConversation,
           ),
         ),
       );

@@ -7,12 +7,48 @@ import 'package:flutter/material.dart';
 /// appear in practice — bold, italic, inline code, and heading lines — into
 /// styled spans.
 ///
-/// Deliberately NOT a Markdown renderer. Tables, images, links, block quotes
-/// and fenced code blocks are left as-is: they are rare in a chat reply, and
-/// supporting them properly means a parser and a dependency this package does
-/// not want. If you need full Markdown, build your own bubble around
-/// [ChatMessage.text] with the renderer of your choice.
+/// Fenced code blocks ARE handled, because asking a chat model for JSON or a
+/// snippet is one of the most common things anyone does with it, and leaving
+/// the ``` fences on screen in a proportional font looks broken.
+///
+/// Deliberately NOT a Markdown renderer beyond that. Tables, images, links and
+/// block quotes are left as-is: they are rarer in a chat reply, and supporting
+/// them properly means a parser and a dependency this package does not want.
+/// If you need full Markdown, build your own bubble around [ChatMessage.text]
+/// with the renderer of your choice.
 List<TextSpan> inlineMarkdownSpans(String text, TextStyle? base) {
+  final spans = <TextSpan>[];
+  var cursor = 0;
+
+  // Fenced blocks first: their contents must never be re-parsed for inline
+  // markers, or a JSON string containing an asterisk would come out italic.
+  for (final fence in _fence.allMatches(text)) {
+    if (fence.start > cursor) {
+      spans.addAll(_prose(text.substring(cursor, fence.start), base));
+    }
+    spans.add(TextSpan(
+      text: (fence.group(2) ?? '').trimRight(),
+      style: _codeStyle(base),
+    ));
+    cursor = fence.end;
+  }
+  if (cursor < text.length) {
+    spans.addAll(_prose(text.substring(cursor), base));
+  }
+  return spans;
+}
+
+/// ```lang\n…\n``` — the language tag is dropped; it is a hint for a
+/// highlighter this package does not ship.
+final RegExp _fence = RegExp('(```[a-zA-Z0-9_+-]*\\n)(.*?)```', dotAll: true);
+
+TextStyle _codeStyle(TextStyle? base) => (base ?? const TextStyle()).copyWith(
+      fontFamily: 'monospace',
+      fontFamilyFallback: const ['Menlo', 'Courier New'],
+      fontSize: ((base?.fontSize) ?? 14) * 0.92,
+    );
+
+List<TextSpan> _prose(String text, TextStyle? base) {
   final spans = <TextSpan>[];
   for (final (index, line) in text.split('\n').indexed) {
     if (index > 0) spans.add(const TextSpan(text: '\n'));

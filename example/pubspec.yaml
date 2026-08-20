@@ -11,6 +11,10 @@ dependencies:
     sdk: flutter
   chatgpt_free:
     path: ../
+  # Example-only: the package deliberately ships no URL launcher, so opening a
+  # citation is the app's job. Adding it here proves the callback is usable
+  # without pushing the dependency onto every consumer.
+  url_launcher: ^6.3.0
 
 dev_dependencies:
   flutter_test:

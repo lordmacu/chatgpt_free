@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/errors.dart';
 import '../../core/models/models.dart';
 
 import '../chat_controller.dart';
@@ -10,7 +11,12 @@ import 'typing_indicator.dart';
 /// A complete chat screen over a [ChatController].
 class ChatView extends StatelessWidget {
   /// Creates the view.
-  const ChatView({required this.controller, this.onCitationTap, super.key});
+  const ChatView({
+    required this.controller,
+    this.onCitationTap,
+    this.onStartNewConversation,
+    super.key,
+  });
 
   /// The controller driving the transcript.
   final ChatController controller;
@@ -19,6 +25,13 @@ class ChatView extends StatelessWidget {
   /// leave it null and the citations render as plain, non-interactive chips —
   /// this package deliberately ships no URL-opening dependency.
   final ValueChanged<Citation>? onCitationTap;
+
+  /// Offered as an action when the anonymous quota is exhausted.
+  ///
+  /// Rotating to a fresh device id clears the hourly cap immediately, and
+  /// starting a new conversation is what does that — so this is the one
+  /// remedy that actually works, not a generic "try again".
+  final VoidCallback? onStartNewConversation;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -39,7 +52,25 @@ class ChatView extends StatelessWidget {
                     content: Text(controller.downgradeNotice!),
                     actions: const [SizedBox.shrink()],
                   ),
-                if (controller.error != null)
+                if (controller.error case final QuotaExceededException _)
+                  MaterialBanner(
+                    backgroundColor: scheme.tertiaryContainer,
+                    content: const Text(
+                      'This device has hit the anonymous hourly limit. '
+                      'Starting a new conversation switches to a fresh device '
+                      'and clears it right away.',
+                    ),
+                    actions: [
+                      if (onStartNewConversation != null)
+                        TextButton(
+                          onPressed: onStartNewConversation,
+                          child: const Text('New conversation'),
+                        )
+                      else
+                        const SizedBox.shrink(),
+                    ],
+                  )
+                else if (controller.error != null)
                   MaterialBanner(
                     backgroundColor: scheme.errorContainer,
                     content: Text(controller.error!.message),
