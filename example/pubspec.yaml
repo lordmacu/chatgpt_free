@@ -1,0 +1,17 @@
+name: chatgpt_free_example
+description: Minimal chat app on chatgpt_free.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  chatgpt_free:
+    path: ../
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
