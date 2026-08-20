@@ -85,4 +85,75 @@ void main() {
         as Map)['content'] as Map;
     expect((parts['parts'] as List).single, contains('contenido secreto'));
   });
+
+  test(
+      'a mid-stream transport failure leaves history clean for a retry '
+      '(Fix round 1, Finding 1)', () async {
+    final transport = FakeTransport(fixtures: ['plain_text', 'plain_text']);
+    final droppedConnection = Exception('dropped mid-turn');
+    // Let the first call deliver the "hola mundo" delta — proving a real,
+    // partially-assembled assistant reply was already folded into history —
+    // then blow up before the stream would naturally complete.
+    transport.midStreamCutAfter[0] = '"hola mundo"';
+    transport.midStreamFailures[0] = droppedConnection;
+    final session = ChatGptSession(transport: transport);
+
+    await expectLater(
+      session.send('hola').toList(),
+      throwsA(same(droppedConnection)),
+    );
+
+    // The failed attempt must be entirely invisible: no orphaned user turn,
+    // no assistant bubble stuck at isStreaming: true.
+    expect(session.history, isEmpty);
+
+    // A same-message retry must behave exactly like a fresh first attempt —
+    // one user turn, one completed assistant turn, and (since history was
+    // rolled back to empty) no replayed-history wrapper in the prompt.
+    await session.send('hola').drain<void>();
+    expect(session.history.length, 2);
+    expect(session.history.where((m) => m.role == 'user').length, 1);
+    expect(session.history.every((m) => !m.isStreaming), isTrue);
+
+    final parts = ((transport.sentBodies.last['messages'] as List).single
+        as Map)['content'] as Map;
+    expect((parts['parts'] as List).single, 'hola');
+  });
+
+  test(
+      'a transport failure on the first turn keeps the system prompt '
+      'pending for the retry (Fix round 1, Finding 2)', () async {
+    final transport = FakeTransport(fixtures: ['plain_text', 'plain_text']);
+    final rateLimited = Exception('rate limited');
+    transport.failures[0] = rateLimited;
+    final session = ChatGptSession(
+      transport: transport,
+      systemPrompt: 'Be concise.',
+    );
+
+    await expectLater(
+      session.send('hola').toList(),
+      throwsA(same(rateLimited)),
+    );
+
+    // The retry is still "the first turn" as far as the session is
+    // concerned: the system prompt was never actually delivered, so it must
+    // be sent again, not silently dropped.
+    await session.send('hola').drain<void>();
+
+    final parts = ((transport.sentBodies.last['messages'] as List).single
+        as Map)['content'] as Map;
+    final prompt = (parts['parts'] as List).single as String;
+    expect(prompt, '[System instructions: Be concise.]\n\nhola');
+  });
+
+  test('close() does not close an injected transport (Fix round 1, Finding 3)',
+      () {
+    final transport = FakeTransport();
+    final session = ChatGptSession(transport: transport);
+
+    session.close();
+
+    expect(transport.closeCalled, isFalse);
+  });
 }

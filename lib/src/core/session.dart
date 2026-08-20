@@ -29,10 +29,17 @@ class ChatGptSession {
     this.systemPrompt = '',
     String? deviceId,
   })  : _transport = transport ?? HttpTransport(),
+        _ownsTransport = transport == null,
         _store = store ?? InMemoryStore(),
         _deviceId = deviceId ?? _uuid.v4();
 
   final Transport _transport;
+
+  /// True when this session created [_transport] itself (no transport was
+  /// injected). An injected transport may be shared — e.g. one HttpTransport
+  /// reused across every session a client-layer wrapper creates — so [close]
+  /// must only release a transport this session owns.
+  final bool _ownsTransport;
   final ChatGptStore _store;
 
   /// Instructions injected on the first turn of the conversation.
@@ -84,6 +91,10 @@ class ChatGptSession {
         ? _withReplayedHistory(message)
         : message;
 
+    // Read, don't mutate: _firstTurn is only flipped once the turn actually
+    // starts (see below), so a throw building the body or a synchronously
+    // rejected transport call leaves it exactly as it was for the retry.
+    final sendingSystemPrompt = _firstTurn;
     final body = buildConversationBody(
       message: prompt,
       model: model,
@@ -93,40 +104,58 @@ class ChatGptSession {
       fileTexts: [
         for (final a in attachments) '${a.name}\n${a.content}',
       ],
-      systemPrompt: _firstTurn ? systemPrompt : null,
+      systemPrompt: sendingSystemPrompt ? systemPrompt : null,
     );
-    _firstTurn = false;
 
     // The request goes out BEFORE the turn is recorded. A rate limit throws
     // here, the client rotates and calls send() again with the same message —
-    // recording earlier would duplicate the user turn on every retry.
+    // recording earlier would duplicate the user turn on every retry. Nothing
+    // above this line has mutated session state, so that throw needs no
+    // unwinding: the session is already exactly as a retry expects it.
     final bytes = await _transport.stream(
       kAnonPrefixConversationPath,
       body,
       deviceId: _deviceId,
     );
 
+    // From here the turn is staged: _firstTurn is spent and _history holds a
+    // user turn plus a streaming assistant placeholder. A stream that throws
+    // mid-turn (dropped connection, malformed frame) must not leave that
+    // placeholder behind for the next send() to fold into its prompt as
+    // "prior conversation" — so everything from here to the end of the turn
+    // is wrapped in try/catch: on any failure, undo exactly what this call
+    // staged and restore _firstTurn, then rethrow. A caller that retries the
+    // same message after any failure — before the transport call or mid-
+    // stream — sees history exactly as if this attempt never happened.
+    _firstTurn = false;
     _history.add(ChatMessage(role: 'user', text: message));
+    _history.add(const ChatMessage(
+        role: 'assistant', text: '', isStreaming: true));
 
     final parser = TurnParser(requestedModel: options.model);
     var assembled = '';
     var citations = const <Citation>[];
 
-    _history.add(const ChatMessage(
-        role: 'assistant', text: '', isStreaming: true));
-
-    await for (final event in parser.parse(readSse(bytes))) {
-      if (event is TextDelta) {
-        // Fold, never concatenate. isReset means the backend replaced or
-        // truncated the reply mid-stream (a `replace`/`truncate` delta on the
-        // text path); appending there would duplicate what it discarded.
-        assembled = event.isReset ? event.text : assembled + event.text;
-        _history[_history.length - 1] =
-            _history.last.copyWith(text: assembled);
-      } else if (event is CitationsReceived) {
-        citations = event.citations;
+    try {
+      await for (final event in parser.parse(readSse(bytes))) {
+        if (event is TextDelta) {
+          // Fold, never concatenate. isReset means the backend replaced or
+          // truncated the reply mid-stream (a `replace`/`truncate` delta on
+          // the text path); appending there would duplicate what it
+          // discarded.
+          assembled = event.isReset ? event.text : assembled + event.text;
+          _history[_history.length - 1] =
+              _history.last.copyWith(text: assembled);
+        } else if (event is CitationsReceived) {
+          citations = event.citations;
+        }
+        yield event;
       }
-      yield event;
+    } catch (_) {
+      _history.removeLast(); // the streaming assistant placeholder
+      _history.removeLast(); // this turn's user message
+      _firstTurn = sendingSystemPrompt;
+      rethrow;
     }
 
     _history[_history.length - 1] = _history.last
@@ -145,8 +174,13 @@ class ChatGptSession {
     return '[Prior conversation — use this as context:\n$turns\n]\n\n$message';
   }
 
-  /// Releases the transport.
-  void close() => _transport.close();
+  /// Releases the transport, but only if this session created it itself.
+  /// An injected transport may be shared by its owner (e.g. across every
+  /// session a client-layer wrapper creates) and must be closed by whoever
+  /// owns it, not by an individual session using it.
+  void close() {
+    if (_ownsTransport) _transport.close();
+  }
 }
 
 /// Path of the anonymous conversation endpoint.
