@@ -51,6 +51,16 @@ class ChatController extends ChangeNotifier {
   ChatGptException? _error;
   String? _downgradeNotice;
 
+  // The last prompt send() attempted, successful or not — retry()'s only
+  // job is to resend exactly this. Recorded here rather than read back off
+  // [messages] because a failed turn's user message does not survive: on
+  // failure, ChatGptSession.send's own catch unwinds it out of
+  // ChatGptSession.history (see session.dart) so a caller who retries the
+  // same message never duplicates it — which also means there is nothing
+  // left in [messages] for retry() to recover the prompt from after a
+  // failure. This field is that prompt's only surviving copy.
+  String? _lastPrompt;
+
   /// The transcript.
   List<ChatMessage> get messages => _messages;
 
@@ -67,6 +77,7 @@ class ChatController extends ChangeNotifier {
   Future<void> send(String text) async {
     if (_isStreaming || text.trim().isEmpty) return;
 
+    _lastPrompt = text;
     _error = null;
     _isStreaming = true;
     notifyListeners();
@@ -126,6 +137,29 @@ class ChatController extends ChangeNotifier {
     _completeSend();
   }
 
+  /// Resends the prompt from the last [send] call that failed.
+  ///
+  /// A safe no-op — completes immediately without sending anything — when
+  /// there is nothing to retry: no prompt has been attempted yet, the last
+  /// attempt did not fail ([error] is null, so there is nothing to redo),
+  /// or a turn is already streaming. This mirrors [send]'s own style of
+  /// quietly ignoring a call that does not apply rather than throwing, so a
+  /// "Retry" button wired straight to this method never needs a guard of
+  /// its own around whether retrying currently makes sense.
+  ///
+  /// This exists because a failed turn leaves nothing in [messages] to
+  /// retry from: [ChatGptSession.send] unwinds the user turn it staged out
+  /// of history on failure (so a caller resending the same text after a
+  /// failure never duplicates it), which means the prompt itself does not
+  /// survive the failure anywhere the controller could read it back from.
+  /// [retry] resends the prompt this controller itself remembered from the
+  /// original [send] call.
+  Future<void> retry() async {
+    final prompt = _lastPrompt;
+    if (prompt == null || _error == null || _isStreaming) return;
+    return send(prompt);
+  }
+
   /// Starts a fresh conversation.
   Future<void> clear() async {
     stop();
@@ -133,6 +167,7 @@ class ChatController extends ChangeNotifier {
     _messages = const [];
     _downgradeNotice = null;
     _error = null;
+    _lastPrompt = null;
     notifyListeners();
   }
 

@@ -81,10 +81,25 @@ class ChatGptClient {
   }
 
   /// Lists the models available to this anonymous session, with capabilities.
+  ///
+  /// The model list is the same for every device id, so this queries a
+  /// throwaway probe id owned by this client rather than any particular
+  /// session's — there is no per-device model catalogue to get wrong here,
+  /// unlike [limits] (Final review, Blocker 5).
   Future<List<ModelInfo>> models() async => parseModels(
       await _transport.get('$kAnonPrefix/models', deviceId: _probeDeviceId));
 
-  /// Reads the current quota state without sending a message.
+  /// Reads the quota state of a throwaway probe device id this client owns
+  /// — **not** any particular session's device id.
+  ///
+  /// Quota is tracked per `device_id`, so this always reports on an
+  /// untouched device that has never sent a turn, never the spend of any
+  /// [ChatGptSession] this client created (Final review, Blocker 5). Call
+  /// [ChatGptSession.limits] instead to read a specific session's own
+  /// standing. This method is kept for the case where only the anonymous
+  /// ceilings themselves are of interest (e.g. documenting them, as the
+  /// live test suite does) and no session's actual spend is being asked
+  /// about.
   Future<Limits> limits() async => parseLimits(await _transport.post(
         '$kAnonPrefix/conversation/init',
         {'conversation_mode_kind': 'primary_assistant'},
@@ -92,6 +107,9 @@ class ChatGptClient {
       ));
 
   /// Translates [text] into [target]. Spends no chat message.
+  ///
+  /// Uses the same throwaway probe device id as [models] — translation is
+  /// not scoped to any particular session's quota.
   Future<String> translate(String text,
           {required String target, String? source}) async =>
       parseTranslation(await _transport.post(

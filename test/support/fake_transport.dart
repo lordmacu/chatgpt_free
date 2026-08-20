@@ -35,6 +35,12 @@ class FakeTransport implements Transport {
   /// Every device id passed to [stream].
   final List<String> sentDeviceIds = [];
 
+  /// Every device id passed to [post].
+  final List<String> sentPostDeviceIds = [];
+
+  /// Every device id passed to [get].
+  final List<String> sentGetDeviceIds = [];
+
   /// True once [close] has been called.
   bool closeCalled = false;
 
@@ -99,16 +105,20 @@ class FakeTransport implements Transport {
   }
 
   @override
-  Future<String> get(String path, {required String deviceId}) async =>
-      getResponse;
+  Future<String> get(String path, {required String deviceId}) async {
+    sentGetDeviceIds.add(deviceId);
+    return getResponse;
+  }
 
   @override
   Future<String> post(
     String path,
     Map<String, dynamic> body, {
     required String deviceId,
-  }) async =>
-      getResponse;
+  }) async {
+    sentPostDeviceIds.add(deviceId);
+    return getResponse;
+  }
 
   @override
   void close() {

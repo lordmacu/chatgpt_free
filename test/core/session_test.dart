@@ -103,6 +103,39 @@ void main() {
     expect(session.conversationId, isNull);
   });
 
+  // Final review, Blocker 5: ChatGptClient.limits()/models()/translate() all
+  // queried a throwaway probe device id, so limits() always reported an
+  // untouched device — never any session's real spend. Quota is per
+  // device_id, which is the entire premise of the rotation feature, so
+  // limits() belongs on the session itself.
+
+  test("limits() reports on this session's own device id, not a probe "
+      '(Final review, Blocker 5)', () async {
+    final transport = FakeTransport()
+      ..getResponse = jsonEncode({
+        'limits_progress': [
+          {'feature_name': 'file_upload', 'remaining': 3}
+        ],
+      });
+    final session = ChatGptSession(transport: transport);
+
+    final limits = await session.limits();
+
+    expect(limits.remaining['file_upload'], 3);
+    expect(transport.sentPostDeviceIds, [session.deviceId]);
+  });
+
+  test('limits() reflects the device id after a rotation, not the '
+      'abandoned one (Final review, Blocker 5)', () async {
+    final transport = FakeTransport()..getResponse = jsonEncode({});
+    final session = ChatGptSession(transport: transport);
+
+    session.rotateDevice();
+    await session.limits();
+
+    expect(transport.sentPostDeviceIds, [session.deviceId]);
+  });
+
   test('replays history inline after a rotation so context survives', () async {
     final transport = FakeTransport(fixtures: ['plain_text', 'plain_text']);
     final session = ChatGptSession(transport: transport);

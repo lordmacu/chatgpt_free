@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:uuid/uuid.dart';
 
+import 'api.dart';
+import 'constants.dart';
 import 'events.dart';
 import 'models/models.dart';
 import 'models/options.dart';
@@ -12,6 +14,24 @@ import 'store.dart';
 import 'transport.dart';
 
 const Uuid _uuid = Uuid();
+
+/// Store key under which [device] id's own conversation id is kept.
+///
+/// Final review, Finding 6: [ChatGptClient] shares one [ChatGptStore]
+/// across every session it creates, and both `device_id` and
+/// `conversation_id` used to be bare, unnamespaced keys. Two sessions from
+/// one client sharing a persistent store (e.g. two chat tabs) could
+/// interleave their writes so that session B's device id ended up saved
+/// alongside session A's conversation id — a pairing the backend never
+/// created and that [restore] had no way to detect, since it could only
+/// check presence, not provenance. Scoping the conversation id key by the
+/// device id it was learned under closes that: [restore] can only ever
+/// resume a conversation id from the exact device id key it was written
+/// under, so a conversation id from one device can never be handed back
+/// paired with another device's id. `device_id` itself stays a single bare
+/// key — last-write-wins there is pre-existing, documented behaviour (this
+/// store holds one "current" identity), not the bug being fixed.
+String _conversationStoreKey(String deviceId) => 'conversation_id:$deviceId';
 
 /// Legacy OpenAI model ids mapped onto real backend slugs.
 const Map<String, String> _modelAliases = {
@@ -65,18 +85,37 @@ class ChatGptSession {
     required ChatGptStore store,
     String systemPrompt = '',
   }) async {
-    final savedDeviceId = await store.read('device_id');
-    final savedConversationId = await store.read('conversation_id');
+    // A store returning '' for an absent key (some real-world adapters do)
+    // must be treated exactly like null — otherwise an empty string sails
+    // past the `!= null` check below, becomes this session's device id, and
+    // ends up on the wire as an empty `OAI-Device-Id` header with no
+    // recovery path (Final review, minor).
+    final rawDeviceId = await store.read('device_id');
+    final savedDeviceId =
+        (rawDeviceId != null && rawDeviceId.isNotEmpty) ? rawDeviceId : null;
+
+    // Only look up (and only ever resume) a conversation id under the saved
+    // device id's own namespaced key — see [_conversationStoreKey]. A
+    // conversation id is meaningless (or worse, wrong) paired with a device
+    // id the backend never saw it on, and this key scheme makes that
+    // pairing structurally unreachable rather than merely checked for.
+    String? savedConversationId;
+    if (savedDeviceId != null) {
+      final rawConversationId =
+          await store.read(_conversationStoreKey(savedDeviceId));
+      savedConversationId =
+          (rawConversationId != null && rawConversationId.isNotEmpty)
+              ? rawConversationId
+              : null;
+    }
+
     final session = ChatGptSession(
       transport: transport,
       store: store,
       systemPrompt: systemPrompt,
       deviceId: savedDeviceId,
     );
-    // Only resume the conversation id alongside its own device id: a
-    // conversation id is meaningless (or worse, wrong) paired with a device
-    // id the backend never saw it on.
-    if (savedDeviceId != null && savedConversationId != null) {
+    if (savedConversationId != null) {
       session._conversationId = savedConversationId;
     }
     return session;
@@ -116,25 +155,49 @@ class ChatGptSession {
   /// the store (fire-and-forget — this method stays synchronous so
   /// [ChatGptClient.sendWithRotation] can call it inline mid-stream) so a
   /// later [ChatGptSession.restore] picks up the rotated identity rather
-  /// than the abandoned one; the old conversation id is cleared from the
-  /// store for the same reason — it belongs to the device id just left
-  /// behind, not the new one.
+  /// than the abandoned one. The old device id's own conversation-id entry
+  /// is also deleted (best-effort hygiene — the new device id's own entry
+  /// was simply never written, so [restore] would already find nothing for
+  /// it either way; see [_conversationStoreKey]).
   void rotateDevice() {
+    final abandonedDeviceId = _deviceId;
     _deviceId = _uuid.v4();
     _conversationId = null;
     _parentMessageId = null;
     _firstTurn = true;
     unawaited(_store.write('device_id', _deviceId));
-    unawaited(_store.delete('conversation_id'));
+    unawaited(_store.delete(_conversationStoreKey(abandonedDeviceId)));
   }
 
   /// Clears everything, including local history and persisted state.
   Future<void> reset() async {
+    final abandonedDeviceId = _deviceId;
     rotateDevice();
     _history.clear();
-    await _store.delete('conversation_id');
+    // rotateDevice()'s own writes above are fire-and-forget; redo them here,
+    // awaited, so the store is guaranteed to reflect the reset by the time
+    // this Future completes.
+    await _store.delete(_conversationStoreKey(abandonedDeviceId));
     await _store.write('device_id', _deviceId);
   }
+
+  /// Reads the current quota state for *this session's own* device id,
+  /// without sending a message.
+  ///
+  /// Quota is tracked per `device_id` — that is the entire premise of the
+  /// rotation feature — so this is the source of truth for what this
+  /// session itself has spent. [ChatGptClient.limits] cannot answer that:
+  /// it queries a throwaway probe id no turn has ever run under, so it
+  /// always reports an untouched device, never this session's real
+  /// standing (Final review, Blocker 5). If this session has just
+  /// [rotateDevice]d, this reports the fresh device's — necessarily
+  /// unspent — quota, which is correct: the old device's spend is exactly
+  /// what rotation left behind.
+  Future<Limits> limits() async => parseLimits(await _transport.post(
+        '$kAnonPrefix/conversation/init',
+        {'conversation_mode_kind': 'primary_assistant'},
+        deviceId: _deviceId,
+      ));
 
   /// Sends [message] and streams the turn's events.
   ///
@@ -268,7 +331,10 @@ class ChatGptSession {
 
     if (parser.conversationId.isNotEmpty) {
       _conversationId = parser.conversationId;
-      await _store.write('conversation_id', parser.conversationId);
+      // Namespaced by this session's own device id — see
+      // [_conversationStoreKey] — so [restore] can never hand this
+      // conversation id back paired with a different device id.
+      await _store.write(_conversationStoreKey(_deviceId), parser.conversationId);
     }
   }
 
