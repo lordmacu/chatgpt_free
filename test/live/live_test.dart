@@ -54,4 +54,21 @@ void main() {
 
     client.close();
   }, timeout: const Timeout(Duration(seconds: 45)));
+
+  test('JSON mode really returns decodable JSON', () async {
+    // response_format is not in the conversation DTO — JSON mode works only
+    // through the instruction prepended to the prompt, so it has to be proven
+    // against the real backend, not asserted.
+    final client = ChatGptClient();
+    final session = client.newSession();
+
+    final decoded = await session.sendJson(
+      'Dame un objeto con las claves nombre y edad para una persona ficticia.',
+    );
+
+    expect(decoded, isA<Map<String, dynamic>>());
+    expect((decoded! as Map).keys, isNotEmpty);
+
+    client.close();
+  }, timeout: const Timeout(Duration(seconds: 90)));
 }

@@ -263,6 +263,12 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Reads the anonymous quota for THIS session's device.
+  ///
+  /// Quota is per device id, so this reports on the device the conversation is
+  /// actually using — not on a throwaway probe.
+  Future<Limits> limits() => _session.limits();
+
   /// Cancels the turn in flight.
   void stop() {
     _subscription?.cancel();

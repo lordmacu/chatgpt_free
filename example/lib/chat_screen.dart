@@ -52,11 +52,69 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final List<Conversation> _conversations = [];
   int _active = 0;
+  bool _jsonMode = false;
+  bool _canvas = false;
+
+  /// Fetched from the backend rather than hardcoded: /models reports exactly
+  /// what this session may use, with each model's capabilities.
+  List<ModelInfo> _models = const [];
 
   @override
   void initState() {
     super.initState();
     _conversations.add(_newConversation());
+    _loadModels();
+  }
+
+  Future<void> _loadModels() async {
+    try {
+      final models = await widget.client.models();
+      if (mounted) setState(() => _models = models);
+    } on ChatGptException {
+      // The hardcoded fallback keeps the picker usable offline.
+    }
+  }
+
+  Future<void> _showLimits() async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final limits = await _controller.limits();
+      if (!mounted) return;
+      await showModalBottomSheet<void>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text('Anonymous quota'),
+                subtitle: Text('Reported by the backend for this device.'),
+              ),
+              for (final e in limits.remaining.entries)
+                ListTile(
+                    dense: true,
+                    title: Text(e.key),
+                    trailing: Text('${e.value}')),
+              if (limits.cappedModels.isNotEmpty)
+                ListTile(
+                  dense: true,
+                  title: const Text('Capped models'),
+                  subtitle: Text(limits.cappedModels.join(', ')),
+                ),
+              if (limits.blockedFeatures.isNotEmpty)
+                ListTile(
+                  dense: true,
+                  title: const Text('Blocked'),
+                  subtitle: Text(limits.blockedFeatures.join(', ')),
+                ),
+            ],
+          ),
+        ),
+      );
+    } on ChatGptException catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   Conversation _newConversation() {
@@ -187,7 +245,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 initialValue: _controller.model,
                 onSelected: (model) => _controller.model = model,
                 itemBuilder: (context) => [
-                  for (final model in kAvailableModels)
+                  for (final model in (_models.isEmpty
+                      ? kAvailableModels
+                      : _models.map((m) => m.id)))
                     PopupMenuItem(value: model, child: Text(model)),
                 ],
                 child: Padding(
@@ -203,6 +263,29 @@ class _ChatScreenState extends State<ChatScreen> {
                 ),
               ),
               IconButton(
+                tooltip: _jsonMode ? 'JSON mode: on' : 'JSON mode: off',
+                isSelected: _jsonMode,
+                selectedIcon: const Icon(Icons.data_object),
+                icon: const Icon(Icons.data_object_outlined),
+                onPressed: _controller.isStreaming
+                    ? null
+                    : () => setState(() => _jsonMode = !_jsonMode),
+              ),
+              IconButton(
+                tooltip: _canvas ? 'Canvas: on' : 'Canvas: off',
+                isSelected: _canvas,
+                selectedIcon: const Icon(Icons.article),
+                icon: const Icon(Icons.article_outlined),
+                onPressed: _controller.isStreaming
+                    ? null
+                    : () => setState(() => _canvas = !_canvas),
+              ),
+              IconButton(
+                tooltip: 'Quota',
+                onPressed: _showLimits,
+                icon: const Icon(Icons.speed_outlined),
+              ),
+              IconButton(
                 tooltip: 'New conversation',
                 onPressed: _startConversation,
                 icon: const Icon(Icons.add_comment_outlined),
@@ -211,6 +294,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           body: ChatView(
             controller: _controller,
+            // currentOptions.copyWith, never a bare SendOptions literal: a
+            // literal would silently drop the picker's model back to auto.
+            sendOptions: _controller.currentOptions
+                .copyWith(jsonMode: _jsonMode, canvas: _canvas ? true : null),
             onCitationTap: (citation) => _openSource(context, citation),
             onStartNewConversation: _startConversation,
           ),

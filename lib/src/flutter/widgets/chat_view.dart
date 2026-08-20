@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/errors.dart';
 import '../../core/models/models.dart';
+import '../../core/models/options.dart';
 
 import '../chat_controller.dart';
 import 'chat_message_list.dart';
@@ -15,6 +16,7 @@ class ChatView extends StatelessWidget {
     required this.controller,
     this.onCitationTap,
     this.onStartNewConversation,
+    this.sendOptions,
     super.key,
   });
 
@@ -32,6 +34,13 @@ class ChatView extends StatelessWidget {
   /// starting a new conversation is what does that — so this is the one
   /// remedy that actually works, not a generic "try again".
   final VoidCallback? onStartNewConversation;
+
+  /// Options applied to every turn sent from this view's composer.
+  ///
+  /// Build it with `controller.currentOptions.copyWith(...)`, never a bare
+  /// `SendOptions(...)` literal — a literal silently resets `model` to its
+  /// default and the turn goes out as `auto`.
+  final SendOptions? sendOptions;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -84,7 +93,7 @@ class ChatView extends StatelessWidget {
                 ),
                 if (controller.isStreaming) const TypingIndicator(),
                 MessageComposer(
-                  onSend: controller.send,
+                  onSend: (text) => controller.send(text, options: sendOptions),
                   enabled: !controller.isStreaming,
                 ),
               ],

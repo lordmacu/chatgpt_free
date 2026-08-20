@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'api.dart';
 import 'constants.dart';
 import 'events.dart';
+import 'json_reply.dart';
 import 'models/models.dart';
 import 'models/options.dart';
 import 'conversation_parser.dart';
@@ -397,6 +398,39 @@ class ChatGptSession {
       ..addAll(detail.messages);
     _firstTurn = false;
     return detail;
+  }
+
+  /// Sends [message] asking for JSON, and returns it decoded.
+  ///
+  /// Turns on JSON mode, collects the whole reply, and decodes it with
+  /// [decodeJsonReply] — which strips the Markdown fence the model wraps its
+  /// JSON in even when told not to. Throws [ProtocolException] if the reply is
+  /// not JSON after that.
+  ///
+  /// This spends a normal chat message; it is the same turn, asked differently.
+  Future<Object?> sendJson(
+    String message, {
+    SendOptions options = const SendOptions(),
+    List<TextAttachment> attachments = const [],
+  }) async {
+    final buffer = StringBuffer();
+    await for (final event in send(
+      message,
+      options: options.copyWith(jsonMode: true),
+      attachments: attachments,
+    )) {
+      if (event is TextDelta) {
+        // Fold, never concatenate: isReset means the backend replaced the reply.
+        if (event.isReset) {
+          buffer
+            ..clear()
+            ..write(event.text);
+        } else {
+          buffer.write(event.text);
+        }
+      }
+    }
+    return decodeJsonReply(buffer.toString());
   }
 
   /// Releases the transport, but only if this session created it itself.
