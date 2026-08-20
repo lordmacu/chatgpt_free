@@ -7,12 +7,28 @@ sealed class ChatEvent {
 }
 
 /// A chunk of assistant text, already stripped of PUA markers.
+///
+/// Under normal streaming this is additive: a consumer builds the reply by
+/// appending [text] to whatever it already has. The wire protocol allows a
+/// `replace` or `truncate` on the text channel at any point, though — the
+/// backend editing text it already streamed. No purely additive delta can
+/// express "forget what you have and use this instead", so when that
+/// happens [isReset] is true and [text] is the complete, corrected reply
+/// so far, not a suffix to append. A consumer that folds every [TextDelta]
+/// — starting from `''`, replacing its running text with [text] when
+/// [isReset] is true and appending it otherwise — always ends the turn
+/// with exactly the text the backend ended it with.
 final class TextDelta extends ChatEvent {
-  /// Creates a text delta.
-  const TextDelta(this.text);
+  /// Creates a text delta. [isReset] defaults to false, the common
+  /// append-only case.
+  const TextDelta(this.text, {this.isReset = false});
 
-  /// The new text to append.
+  /// The new text — append it, unless [isReset] is true.
   final String text;
+
+  /// True when [text] is a full replacement for the reply so far (the
+  /// backend edited already-streamed text), not a suffix to append.
+  final bool isReset;
 }
 
 /// The backend ran web searches for this turn.

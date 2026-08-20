@@ -137,25 +137,41 @@ class TurnParser {
     return first is String ? first : '';
   }
 
+  // Invariant this method exists to guarantee: a consumer that folds every
+  // TextDelta — starting from '', replacing its running text with .text
+  // when .isReset is true and appending it otherwise — always ends the
+  // turn holding exactly the text the backend ended it with. That holds
+  // for two independent reasons:
+  //
+  // 1. A structured marker can arrive split across two SSE chunks: the
+  //    opening \uE200/kind/\uE202/ref lands in one delta, the closing
+  //    \uE201 in the next. Between those two frames stripPuaMarkers cannot
+  //    recognise the marker yet — it only removes the lone control
+  //    characters and leaves the kind/ref payload sitting in plain text.
+  //    _safeTextBoundary withholds that unsettled tail so `clean` never
+  //    reflects a marker that might still close differently.
+  // 2. DeltaApplier's `replace` and `truncate` are not scoped away from
+  //    the text channel — the backend can edit already-streamed text at
+  //    any path, including this one. No withholding strategy can predict
+  //    that in advance (it is not signalled the way an open marker is), so
+  //    when it happens `clean` can be shorter than, or simply diverge
+  //    from, what was already emitted. A purely additive delta cannot
+  //    retract the stale tail in that case, so this is where isReset:true
+  //    is used: the consumer is told to discard what it has and adopt
+  //    `clean` wholesale, rather than told to (impossibly) append to it.
   Stream<ChatEvent> _emitTextDelta() async* {
-    // A structured marker can arrive split across two SSE chunks: the
-    // opening \uE200/kind/\uE202/ref lands in one delta, the closing
-    // \uE201 in the next. Between those two frames stripPuaMarkers cannot
-    // recognise the marker yet — it only removes the lone control
-    // characters and leaves the kind/ref payload sitting in plain text.
-    // Once the marker closes, that whole stretch collapses to nothing, so
-    // anything already emitted from it would need to be retracted — which
-    // a plain append-only TextDelta stream cannot do. So: never strip or
-    // emit past an unterminated marker; wait for it to close first. This
-    // keeps the cleaned prefix monotonically growing, which is what the
-    // length-diff below assumes.
     final raw = _rawText;
     final safe = raw.substring(0, _safeTextBoundary(raw));
     final clean = stripPuaMarkers(safe);
-    if (clean.length <= _emittedText.length) return;
-    final delta = clean.substring(_emittedText.length);
-    _emittedText = clean;
-    if (delta.isNotEmpty) yield TextDelta(delta);
+    if (clean == _emittedText) return;
+    if (clean.startsWith(_emittedText)) {
+      final delta = clean.substring(_emittedText.length);
+      _emittedText = clean;
+      if (delta.isNotEmpty) yield TextDelta(delta);
+    } else {
+      _emittedText = clean;
+      yield TextDelta(clean, isReset: true);
+    }
   }
 
   /// The index in [raw] up to which text is safe to strip and display —

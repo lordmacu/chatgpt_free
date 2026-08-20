@@ -200,4 +200,74 @@ void main() {
     expect(downgrades, hasLength(1));
     expect(downgrades.single.actual, 'assistant-real-model');
   });
+
+  // Fix round 2: DeltaApplier's `replace` and `truncate` are not scoped
+  // away from the text channel — they are first-class operations the
+  // backend can send on /message/content/parts/0 at any point, the same as
+  // the Python reference this package ports (chatgpt_client.py:685-688).
+  // A consumer that folds every TextDelta — starting from '', replacing
+  // its running text with .text when .isReset is true and appending it
+  // otherwise — must end the turn holding exactly the text the backend
+  // ended it with. This is the "consumer reconstruction" every test below
+  // performs; it is not plain String.join(), because once a reset can
+  // happen, plain concatenation of every .text is no longer well-defined
+  // as "the text so far".
+  String reconstruct(Iterable<TextDelta> deltas) {
+    var text = '';
+    for (final d in deltas) {
+      text = d.isReset ? d.text : text + d.text;
+    }
+    return text;
+  }
+
+  test('a replace that shortens the reply mid-stream resyncs instead of '
+      'freezing', () async {
+    final parser = TurnParser(requestedModel: 'auto');
+    final frames = Stream.fromIterable([
+      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
+          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"append","v":'
+          '"This is a much longer draft that will be replaced"}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"replace","v":'
+          '"Short answer"}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"append","v":'
+          '", now finalized."}'),
+    ]);
+
+    final events = await parser.parse(frames).toList();
+    final deltas = events.whereType<TextDelta>().toList();
+
+    expect(reconstruct(deltas), 'Short answer, now finalized.');
+  });
+
+  test('a truncate that shortens the reply mid-stream resyncs instead of '
+      'freezing', () async {
+    final parser = TurnParser(requestedModel: 'auto');
+    final frames = Stream.fromIterable([
+      const SseFrame('delta', '{"p":"","o":"add","v":{"message":{"content":'
+          '{"parts":[""]},"metadata":{}}}}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"append","v":'
+          '"Hello wonderful world"}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"truncate","v":5}'),
+      const SseFrame(
+          'delta',
+          '{"p":"/message/content/parts/0","o":"append","v":'
+          '" there, everyone!"}'),
+    ]);
+
+    final events = await parser.parse(frames).toList();
+    final deltas = events.whereType<TextDelta>().toList();
+
+    expect(reconstruct(deltas), 'Hello there, everyone!');
+  });
 }
