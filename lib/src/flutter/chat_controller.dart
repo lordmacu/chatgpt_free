@@ -28,6 +28,18 @@ class ChatController extends ChangeNotifier {
   late ChatGptSession _session;
   StreamSubscription<ChatEvent>? _subscription;
 
+  // The pending `send()` call's completer, if a turn is in flight. Promoted
+  // to a field (rather than a local in `send()`) so `stop()` and `dispose()`
+  // can complete it too: cancelling a StreamSubscription never invokes
+  // `onDone`/`onError`, so those two callbacks alone cannot be the only path
+  // that resolves the Future `send()` handed back to its caller — otherwise
+  // an `await controller.send(...)` racing a `stop()`/`dispose()` call would
+  // hang forever. `_completeSend` is the single place that completes it, and
+  // it always nulls the field out first, so a turn's completer can only ever
+  // be completed once no matter which of the four paths (normal onDone,
+  // onError, stop(), dispose()) gets there first.
+  Completer<void>? _pendingSend;
+
   /// Model to request for each turn.
   final String model;
 
@@ -60,6 +72,7 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
 
     final completer = Completer<void>();
+    _pendingSend = completer;
     _subscription = _client
         .sendWithRotation(
           _session,
@@ -80,18 +93,28 @@ class ChatController extends ChangeNotifier {
         _isStreaming = false;
         _messages = _session.history;
         notifyListeners();
-        if (!completer.isCompleted) completer.complete();
+        _completeSend();
       },
       onDone: () {
         _isStreaming = false;
         _messages = _session.history;
         notifyListeners();
-        if (!completer.isCompleted) completer.complete();
+        _completeSend();
       },
       cancelOnError: true,
     );
 
     return completer.future;
+  }
+
+  /// Completes the in-flight `send()` call's [Completer], if there is one,
+  /// exactly once. Safe to call from any of `send()`'s own callbacks, from
+  /// [stop], or from [dispose] — nulling [_pendingSend] out first means a
+  /// second caller sees nothing to complete.
+  void _completeSend() {
+    final completer = _pendingSend;
+    _pendingSend = null;
+    if (completer != null && !completer.isCompleted) completer.complete();
   }
 
   /// Cancels the turn in flight.
@@ -100,6 +123,7 @@ class ChatController extends ChangeNotifier {
     _subscription = null;
     _isStreaming = false;
     notifyListeners();
+    _completeSend();
   }
 
   /// Starts a fresh conversation.
@@ -115,6 +139,7 @@ class ChatController extends ChangeNotifier {
   @override
   void dispose() {
     _subscription?.cancel();
+    _completeSend();
     if (_ownsClient) _client.close();
     super.dispose();
   }

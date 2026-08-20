@@ -45,4 +45,50 @@ void main() {
     expect(controller.messages, isEmpty);
     expect(controller.downgradeNotice, isNull);
   });
+
+  // Regression coverage for Fix round 1 / Finding 1: cancelling the
+  // StreamSubscription never invokes onDone/onError, so those were the only
+  // two places completing send()'s Completer. A caller awaiting send()
+  // while stop()/clear()/dispose() fires mid-turn used to hang forever.
+  // Each test below bounds the await with a short timeout so a regression
+  // fails fast (with a TimeoutException) instead of hanging the suite.
+
+  test('stop() mid-turn completes the pending send() future', () async {
+    final transport = FakeTransport();
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    final future = controller.send('hola');
+    controller.stop();
+
+    await future.timeout(const Duration(seconds: 3));
+
+    expect(controller.isStreaming, isFalse);
+  });
+
+  test('clear() mid-turn completes the pending send() future', () async {
+    final transport = FakeTransport();
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    final future = controller.send('hola');
+    final clearing = controller.clear();
+
+    await future.timeout(const Duration(seconds: 3));
+    await clearing.timeout(const Duration(seconds: 3));
+
+    expect(controller.isStreaming, isFalse);
+    expect(controller.messages, isEmpty);
+  });
+
+  test('dispose() mid-turn completes the pending send() future', () async {
+    final transport = FakeTransport();
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    final future = controller.send('hola');
+    controller.dispose();
+
+    await future.timeout(const Duration(seconds: 3));
+  });
 }
