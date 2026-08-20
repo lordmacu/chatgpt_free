@@ -1,5 +1,6 @@
 import 'package:uuid/uuid.dart';
 
+import 'errors.dart';
 import 'events.dart';
 import 'models/models.dart';
 import 'models/options.dart';
@@ -51,6 +52,10 @@ class ChatGptSession {
   bool _firstTurn = true;
   final List<ChatMessage> _history = [];
 
+  /// True while a turn started by [send] is still being streamed. Guards
+  /// against a second, overlapping call corrupting [history].
+  bool _turnInFlight = false;
+
   /// The device id this session identifies as.
   String get deviceId => _deviceId;
 
@@ -79,91 +84,131 @@ class ChatGptSession {
   }
 
   /// Sends [message] and streams the turn's events.
+  ///
+  /// One turn at a time per session: a session models a single ongoing
+  /// conversation, so two overlapping turns have no coherent meaning — and
+  /// letting them interleave would race to append to [history], corrupting
+  /// it. The guard is armed the instant this method is called (not only once
+  /// the returned stream is consumed), so calling [send] again before the
+  /// previous call's stream has finished — successfully, or with an error —
+  /// throws [InvalidRequestException] immediately, before anything is
+  /// validated or the transport is touched. Wait for the previous stream to
+  /// finish (drain it, `await` a `for await` loop over it to completion, or
+  /// otherwise reach its `done`/error) before calling [send] again.
   Stream<ChatEvent> send(
     String message, {
     SendOptions options = const SendOptions(),
     List<TextAttachment> attachments = const [],
-  }) async* {
-    options.validate();
-
-    final model = _modelAliases[options.model] ?? options.model;
-    final prompt = _conversationId == null && _history.isNotEmpty
-        ? _withReplayedHistory(message)
-        : message;
-
-    // Read, don't mutate: _firstTurn is only flipped once the turn actually
-    // starts (see below), so a throw building the body or a synchronously
-    // rejected transport call leaves it exactly as it was for the retry.
-    final sendingSystemPrompt = _firstTurn;
-    final body = buildConversationBody(
-      message: prompt,
-      model: model,
-      options: options,
-      conversationId: _conversationId,
-      parentMessageId: _parentMessageId,
-      fileTexts: [
-        for (final a in attachments) '${a.name}\n${a.content}',
-      ],
-      systemPrompt: sendingSystemPrompt ? systemPrompt : null,
-    );
-
-    // The request goes out BEFORE the turn is recorded. A rate limit throws
-    // here, the client rotates and calls send() again with the same message —
-    // recording earlier would duplicate the user turn on every retry. Nothing
-    // above this line has mutated session state, so that throw needs no
-    // unwinding: the session is already exactly as a retry expects it.
-    final bytes = await _transport.stream(
-      kAnonPrefixConversationPath,
-      body,
-      deviceId: _deviceId,
-    );
-
-    // From here the turn is staged: _firstTurn is spent and _history holds a
-    // user turn plus a streaming assistant placeholder. A stream that throws
-    // mid-turn (dropped connection, malformed frame) must not leave that
-    // placeholder behind for the next send() to fold into its prompt as
-    // "prior conversation" — so everything from here to the end of the turn
-    // is wrapped in try/catch: on any failure, undo exactly what this call
-    // staged and restore _firstTurn, then rethrow. A caller that retries the
-    // same message after any failure — before the transport call or mid-
-    // stream — sees history exactly as if this attempt never happened.
-    _firstTurn = false;
-    _history.add(ChatMessage(role: 'user', text: message));
-    _history.add(const ChatMessage(
-        role: 'assistant', text: '', isStreaming: true));
-
-    final parser = TurnParser(requestedModel: options.model);
-    var assembled = '';
-    var citations = const <Citation>[];
-
-    try {
-      await for (final event in parser.parse(readSse(bytes))) {
-        if (event is TextDelta) {
-          // Fold, never concatenate. isReset means the backend replaced or
-          // truncated the reply mid-stream (a `replace`/`truncate` delta on
-          // the text path); appending there would duplicate what it
-          // discarded.
-          assembled = event.isReset ? event.text : assembled + event.text;
-          _history[_history.length - 1] =
-              _history.last.copyWith(text: assembled);
-        } else if (event is CitationsReceived) {
-          citations = event.citations;
-        }
-        yield event;
-      }
-    } catch (_) {
-      _history.removeLast(); // the streaming assistant placeholder
-      _history.removeLast(); // this turn's user message
-      _firstTurn = sendingSystemPrompt;
-      rethrow;
+  }) {
+    if (_turnInFlight) {
+      throw const InvalidRequestException(
+        'a turn is already in progress on this session; wait for its '
+        'stream to finish (or fail) before calling send() again',
+        field: 'concurrency',
+      );
     }
+    _turnInFlight = true;
+    return _send(message, options: options, attachments: attachments);
+  }
 
-    _history[_history.length - 1] = _history.last
-        .copyWith(citations: citations, isStreaming: false);
+  Stream<ChatEvent> _send(
+    String message, {
+    SendOptions options = const SendOptions(),
+    List<TextAttachment> attachments = const [],
+  }) async* {
+    // Whatever happens below — success, a validation throw, a transport
+    // failure, or a mid-stream failure caught and rethrown further down —
+    // this turn is no longer in flight once this generator's body is done,
+    // so the next call to send() is allowed again.
+    try {
+      options.validate();
 
-    if (parser.conversationId.isNotEmpty) {
-      _conversationId = parser.conversationId;
-      await _store.write('conversation_id', parser.conversationId);
+      final model = _modelAliases[options.model] ?? options.model;
+      final prompt = _conversationId == null && _history.isNotEmpty
+          ? _withReplayedHistory(message)
+          : message;
+
+      // Read, don't mutate: _firstTurn is only flipped once the turn
+      // actually starts (see below), so a throw building the body or a
+      // synchronously rejected transport call leaves it exactly as it was
+      // for the retry.
+      final sendingSystemPrompt = _firstTurn;
+      final body = buildConversationBody(
+        message: prompt,
+        model: model,
+        options: options,
+        conversationId: _conversationId,
+        parentMessageId: _parentMessageId,
+        fileTexts: [
+          for (final a in attachments) '${a.name}\n${a.content}',
+        ],
+        systemPrompt: sendingSystemPrompt ? systemPrompt : null,
+      );
+
+      // The request goes out BEFORE the turn is recorded. A rate limit
+      // throws here, the client rotates and calls send() again with the
+      // same message — recording earlier would duplicate the user turn on
+      // every retry. Nothing above this line has mutated session state, so
+      // that throw needs no unwinding: the session is already exactly as a
+      // retry expects it.
+      final bytes = await _transport.stream(
+        kAnonPrefixConversationPath,
+        body,
+        deviceId: _deviceId,
+      );
+
+      // From here the turn is staged: _firstTurn is spent and _history
+      // holds a user turn plus a streaming assistant placeholder. A stream
+      // that throws mid-turn (dropped connection, malformed frame) must
+      // not leave that placeholder behind for the next send() to fold into
+      // its prompt as "prior conversation" — so everything from here to the
+      // end of the turn is wrapped in try/catch: on any failure, undo
+      // exactly what this call staged and restore _firstTurn, then rethrow.
+      // A caller that retries the same message after any failure — before
+      // the transport call or mid-stream — sees history exactly as if this
+      // attempt never happened. (The [_turnInFlight] guard above is what
+      // makes "exactly what this call staged" a safe assumption: no other
+      // call can be interleaved here to add or remove entries of its own.)
+      _firstTurn = false;
+      _history.add(ChatMessage(role: 'user', text: message));
+      _history.add(const ChatMessage(
+          role: 'assistant', text: '', isStreaming: true));
+
+      final parser = TurnParser(requestedModel: options.model);
+      var assembled = '';
+      var citations = const <Citation>[];
+
+      try {
+        await for (final event in parser.parse(readSse(bytes))) {
+          if (event is TextDelta) {
+            // Fold, never concatenate. isReset means the backend replaced
+            // or truncated the reply mid-stream (a `replace`/`truncate`
+            // delta on the text path); appending there would duplicate
+            // what it discarded.
+            assembled = event.isReset ? event.text : assembled + event.text;
+            _history[_history.length - 1] =
+                _history.last.copyWith(text: assembled);
+          } else if (event is CitationsReceived) {
+            citations = event.citations;
+          }
+          yield event;
+        }
+      } catch (_) {
+        _history.removeLast(); // the streaming assistant placeholder
+        _history.removeLast(); // this turn's user message
+        _firstTurn = sendingSystemPrompt;
+        rethrow;
+      }
+
+      _history[_history.length - 1] = _history.last
+          .copyWith(citations: citations, isStreaming: false);
+
+      if (parser.conversationId.isNotEmpty) {
+        _conversationId = parser.conversationId;
+        await _store.write('conversation_id', parser.conversationId);
+      }
+    } finally {
+      _turnInFlight = false;
     }
   }
 
