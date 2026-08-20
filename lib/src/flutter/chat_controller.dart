@@ -16,10 +16,12 @@ class ChatController extends ChangeNotifier {
   ChatController({
     ChatGptClient? client,
     String systemPrompt = '',
-    this.model = 'auto',
-    this.webSearch,
+    String model = 'auto',
+    bool? webSearch,
   })  : _client = client ?? ChatGptClient(),
-        _ownsClient = client == null {
+        _ownsClient = client == null,
+        _model = model,
+        _webSearch = webSearch {
     _session = _client.newSession(systemPrompt: systemPrompt);
   }
 
@@ -40,11 +42,59 @@ class ChatController extends ChangeNotifier {
   // onError, stop(), dispose()) gets there first.
   Completer<void>? _pendingSend;
 
-  /// Model to request for each turn.
-  final String model;
+  // Backing fields for [model] and [webSearch]. Both are mutable (unlike
+  // the rest of this controller's settings, which are constructor-only)
+  // specifically so a UI model picker / web-search toggle can drive them —
+  // see the setters below for the precedence and streaming-guard rules
+  // that make that safe.
+  String _model;
+  bool? _webSearch;
 
-  /// Force web search on or off; null lets the model decide.
-  final bool? webSearch;
+  /// Model requested for a turn that does not pass its own [SendOptions] to
+  /// [send] — see [send]'s doc comment for the exact precedence rule.
+  ///
+  /// Settable: assigning a new value does not touch [messages] or the
+  /// underlying session, so switching models mid-conversation keeps the
+  /// transcript and the server-side `conversation_id` intact — only later
+  /// turns pick up the new model. The setter throws [StateError] while
+  /// [isStreaming] is true; see its own doc comment for why.
+  String get model => _model;
+
+  set model(String value) {
+    _guardAgainstStreamingMutation('model');
+    _model = value;
+    notifyListeners();
+  }
+
+  /// Force web search on or off for a turn that does not pass its own
+  /// [SendOptions] to [send]; null lets the model decide. See [model] for
+  /// the mutability, conversation-continuity and streaming-guard notes —
+  /// they apply identically here.
+  bool? get webSearch => _webSearch;
+
+  set webSearch(bool? value) {
+    _guardAgainstStreamingMutation('webSearch');
+    _webSearch = value;
+    notifyListeners();
+  }
+
+  // Shared guard for the [model] and [webSearch] setters. Throwing here
+  // (rather than silently applying the change, or silently queueing it)
+  // is documented on [model] and [webSearch]; see also the doc comment on
+  // [isStreaming].
+  void _guardAgainstStreamingMutation(String setterName) {
+    if (_isStreaming) {
+      throw StateError(
+          'ChatController.$setterName cannot be changed while a turn is '
+          'streaming (isStreaming == true). The change can never reach '
+          "the turn already in flight — its SendOptions were built and "
+          'sent before this call — so applying it silently would leave '
+          "the controller's reported setting disagreeing with what "
+          'actually produced the reply on screen. Wait for the turn to '
+          'finish (or call stop()) before changing it, e.g. by disabling '
+          'the control that calls this setter while isStreaming is true.');
+    }
+  }
 
   List<ChatMessage> _messages = const [];
   bool _isStreaming = false;
@@ -65,6 +115,10 @@ class ChatController extends ChangeNotifier {
   List<ChatMessage> get messages => _messages;
 
   /// True while a reply is streaming.
+  ///
+  /// While this is true, the [model] and [webSearch] setters throw
+  /// [StateError] rather than change the running turn's settings out from
+  /// under it — see [model]'s doc comment.
   bool get isStreaming => _isStreaming;
 
   /// The last error, if any.
@@ -74,7 +128,29 @@ class ChatController extends ChangeNotifier {
   String? get downgradeNotice => _downgradeNotice;
 
   /// Sends [text] and streams the reply into [messages].
-  Future<void> send(String text) async {
+  ///
+  /// [options] and [attachments] are per-turn, mirroring
+  /// [ChatGptSession.send]/[ChatGptClient.sendWithRotation] directly.
+  ///
+  /// Precedence between [options] and this controller's own [model] /
+  /// [webSearch]: **[options], when supplied, is used exactly as given —
+  /// it is never merged with the controller's settings.** If [options] is
+  /// omitted (the default, and the only form that existed before this
+  /// parameter was added), this turn uses
+  /// `SendOptions(model: this.model, webSearch: this.webSearch)`, built
+  /// fresh from the controller's current settings at the moment [send] is
+  /// called. There is no field-by-field fallback in either direction: a
+  /// caller who passes `SendOptions(model: 'gpt-5-6')` gets `webSearch:
+  /// null` for that turn (SendOptions' own default) even if
+  /// `this.webSearch` is `true` — not the controller's value quietly filled
+  /// in. This keeps the rule predictable from the call site alone: pass
+  /// [options] and it is the whole story for that turn; omit it and the
+  /// controller's current settings are the whole story.
+  Future<void> send(
+    String text, {
+    SendOptions? options,
+    List<TextAttachment> attachments = const [],
+  }) async {
     if (_isStreaming || text.trim().isEmpty) return;
 
     _lastPrompt = text;
@@ -88,7 +164,8 @@ class ChatController extends ChangeNotifier {
         .sendWithRotation(
           _session,
           text,
-          options: SendOptions(model: model, webSearch: webSearch),
+          options: options ?? SendOptions(model: _model, webSearch: _webSearch),
+          attachments: attachments,
         )
         .listen(
       (event) {

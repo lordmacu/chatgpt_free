@@ -149,4 +149,151 @@ void main() {
 
     await future.timeout(const Duration(seconds: 3));
   });
+
+  // Task 17: per-turn SendOptions, mutable model/webSearch, and the
+  // streaming-setter guard.
+
+  group('per-turn SendOptions precedence', () {
+    test('omitting options builds SendOptions from the controller\'s own '
+        'model and webSearch', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-5',
+        webSearch: true,
+      );
+
+      await controller.send('hola');
+
+      expect(transport.sentBodies.single['model'], 'gpt-5-5');
+      expect(transport.sentBodies.single['force_use_search'], true);
+    });
+
+    test('an explicit SendOptions is used verbatim, not merged with the '
+        'controller\'s own settings', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-5',
+        webSearch: true,
+      );
+
+      // The explicit options below name a different model and leave
+      // webSearch at SendOptions' own default (null) — verbatim precedence
+      // means neither is filled back in from the controller.
+      await controller.send('hola',
+          options: const SendOptions(model: 'gpt-5-6-mini'));
+
+      final body = transport.sentBodies.single;
+      expect(body['model'], 'gpt-5-6-mini');
+      expect(body.containsKey('force_use_search'), isFalse);
+    });
+
+    test('attachments pass through to the session', () async {
+      final transport = FakeTransport();
+      final controller =
+          ChatController(client: ChatGptClient(transport: transport));
+
+      await controller.send('resume esto', attachments: const [
+        TextAttachment(name: 'a.txt', content: 'contenido secreto'),
+      ]);
+
+      final parts = ((transport.sentBodies.single['messages'] as List).single
+          as Map)['content'] as Map;
+      expect((parts['parts'] as List).single, contains('contenido secreto'));
+    });
+  });
+
+  group('mutable model and webSearch', () {
+    test('setting model calls notifyListeners()', () async {
+      final transport = FakeTransport();
+      final controller =
+          ChatController(client: ChatGptClient(transport: transport));
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      controller.model = 'gpt-5-5-mini';
+
+      expect(controller.model, 'gpt-5-5-mini');
+      expect(notified, isTrue);
+    });
+
+    test('setting webSearch calls notifyListeners()', () async {
+      final transport = FakeTransport();
+      final controller =
+          ChatController(client: ChatGptClient(transport: transport));
+      var notified = false;
+      controller.addListener(() => notified = true);
+
+      controller.webSearch = true;
+
+      expect(controller.webSearch, isTrue);
+      expect(notified, isTrue);
+    });
+
+    test('changing model mid-conversation keeps the transcript and the '
+        'conversation id, not just the local list', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6',
+      );
+
+      await controller.send('primer turno');
+      expect(controller.messages.length, 2);
+      // plain_text.sse has no conversation_id on the first request — the
+      // session only learns one from the response.
+      expect(transport.sentBodies[0].containsKey('conversation_id'), isFalse);
+
+      controller.model = 'gpt-5-5';
+      await controller.send('segundo turno');
+
+      // The transcript grew, it was not reset.
+      expect(controller.messages.length, 4);
+      expect(controller.messages[0].text, 'primer turno');
+      expect(controller.messages[2].text, 'segundo turno');
+      // The second request carries the conversation id learned from the
+      // first response, and uses the newly-set model.
+      expect(transport.sentBodies[1]['conversation_id'],
+          '6a872769-b8e0-83ea-9bcb-c551963b63a8');
+      expect(transport.sentBodies[1]['model'], 'gpt-5-5');
+      // The device id (and so the session) was not thrown away either.
+      expect(transport.sentDeviceIds[1], transport.sentDeviceIds[0]);
+    });
+  });
+
+  group('mutating settings while a turn is streaming', () {
+    test('setting model while streaming throws StateError and leaves the '
+        'in-flight turn untouched', () async {
+      final transport = FakeTransport();
+      final controller = ChatController(
+        client: ChatGptClient(transport: transport),
+        model: 'gpt-5-6',
+      );
+
+      final future = controller.send('hola');
+      expect(controller.isStreaming, isTrue);
+
+      expect(() => controller.model = 'gpt-5-5', throwsStateError);
+      expect(controller.model, 'gpt-5-6'); // unchanged
+
+      controller.stop();
+      await future.timeout(const Duration(seconds: 3));
+    });
+
+    test('setting webSearch while streaming throws StateError', () async {
+      final transport = FakeTransport();
+      final controller =
+          ChatController(client: ChatGptClient(transport: transport));
+
+      final future = controller.send('hola');
+      expect(controller.isStreaming, isTrue);
+
+      expect(() => controller.webSearch = true, throwsStateError);
+      expect(controller.webSearch, isNull); // unchanged
+
+      controller.stop();
+      await future.timeout(const Duration(seconds: 3));
+    });
+  });
 }

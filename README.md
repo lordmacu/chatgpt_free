@@ -50,6 +50,66 @@ just renders whatever the controller currently has, including a typing
 indicator, citation chips, and a banner when the backend downgrades the
 model mid-conversation.
 
+## Changing model and web search mid-conversation
+
+`ChatController.model` and `.webSearch` are settable, not just
+constructor arguments, and each setter calls `notifyListeners()` so a
+picker or a switch bound to the controller rebuilds on its own:
+
+```dart
+DropdownButton<String>(
+  value: controller.model,
+  onChanged: controller.isStreaming
+      ? null
+      : (model) => controller.model = model!,
+  items: [
+    for (final m in ['auto', 'gpt-5-6', 'gpt-5-5', 'gpt-5-6-mini'])
+      DropdownMenuItem(value: m, child: Text(m)),
+  ],
+);
+```
+
+Changing `model` mid-conversation does **not** start a new conversation —
+the transcript and the session's `conversationId` both survive. Only
+later turns pick up the new value; the backend accepts a different
+`model` slug on a later turn of the same conversation.
+
+Both setters **throw `StateError` if called while `controller.isStreaming`
+is `true`.** A change made then could never reach the reply already
+streaming in — its `SendOptions` were built and sent before the setter
+call — so applying it would leave the controller's reported setting
+disagreeing with what actually produced the text on screen. The fix is
+the same one the snippet above already shows: disable the control
+(`onChanged: controller.isStreaming ? null : ...`) instead of leaving it
+live and catching the exception.
+
+## Per-turn options: `SendOptions` and attachments
+
+`ChatController.send()` takes the same per-turn `options` and
+`attachments` that the core `ChatGptSession.send()` does, for the calls
+where the controller's own `model`/`webSearch` settings aren't enough —
+Canvas, JSON mode, `thinkingEffort`, `serviceTier`, or a one-off text
+attachment:
+
+```dart
+await controller.send(
+  'Summarize the attached notes as JSON.',
+  options: const SendOptions(model: 'gpt-5-6', jsonMode: true),
+  attachments: const [TextAttachment(name: 'notes.md', content: '...')],
+);
+```
+
+**Precedence:** an explicit `options` argument is used exactly as given —
+it is never merged field-by-field with `controller.model` /
+`controller.webSearch`. Omit `options` (as every call before this
+parameter existed still can) and the turn falls back to
+`SendOptions(model: controller.model, webSearch: controller.webSearch)`,
+built fresh from the controller's current settings at call time. There is
+no partial fallback: passing `SendOptions(model: 'gpt-5-6')` above sends
+`webSearch: null` for that turn — `SendOptions`' own default — even if
+`controller.webSearch` is `true`. Pass `options` and it is the whole story
+for that turn; omit it and the controller's current settings are.
+
 ## Using the client directly
 
 Skip Flutter entirely and drive the core client yourself. `ChatEvent` is a
