@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:chatgpt_free/chatgpt_free.dart';
-import 'package:chatgpt_free/src/core/transport.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../support/fake_transport.dart';
@@ -204,6 +203,37 @@ void main() {
     session.close();
 
     expect(transport.closeCalled, isFalse);
+  });
+
+  test(
+      'a truncated multi-byte UTF-8 sequence surfaces as ProtocolException '
+      'through send(), not a raw FormatException, and leaves history clean '
+      '(Final review, Blocker 3)', () async {
+    // Regression: nothing wrapped the response body stream, so a connection
+    // dropping mid multi-byte UTF-8 character let a raw FormatException
+    // escape send() (and, transitively, ChatGptClient.sendWithRotation)
+    // unclassified — failing `is ChatGptException`. readSse now reclassifies
+    // it as ProtocolException before it reaches here.
+    final transport = _ControlledTransport();
+    final session = ChatGptSession(transport: transport);
+
+    final result = session.send('hola').toList();
+    // Let send() run up to (and await) its _transport.stream() call before
+    // reaching into transport.controllers — otherwise the controller for
+    // this call does not exist yet.
+    await Future<void>.delayed(Duration.zero);
+    // 0xC3 is the lead byte of a 2-byte UTF-8 sequence; closing the stream
+    // right after it, with no continuation byte, is what a connection
+    // dropping mid-character produces.
+    transport.controllers.single
+      ..add([...utf8.encode('data: caf'), 0xC3])
+      ..close();
+
+    await expectLater(result, throwsA(isA<ProtocolException>()));
+
+    // Same contract as every other mid-stream failure: no orphaned turns
+    // left behind for the next send() to fold into its prompt.
+    expect(session.history, isEmpty);
   });
 
   test(

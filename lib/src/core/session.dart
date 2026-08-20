@@ -187,7 +187,7 @@ class ChatGptSession {
     // above this line has mutated session state, so that throw needs no
     // unwinding: the session is already exactly as a retry expects it.
     final bytes = await _transport.stream(
-      kAnonPrefixConversationPath,
+      _kAnonPrefixConversationPath,
       body,
       deviceId: _deviceId,
     );
@@ -308,4 +308,7 @@ class ChatGptSession {
 }
 
 /// Path of the anonymous conversation endpoint.
-const String kAnonPrefixConversationPath = '/backend-anon/f/conversation';
+///
+/// Private: this is an implementation detail of [ChatGptSession.send], not
+/// part of the public surface — a consumer has no legitimate use for it.
+const String _kAnonPrefixConversationPath = '/backend-anon/f/conversation';

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -100,8 +101,28 @@ class HttpTransport implements Transport {
       final text = await response.stream.bytesToString();
       _throwForStatus(response.statusCode, text);
     }
-    return response.stream;
+    return _wrapBodyErrors(response.stream);
   }
+
+  /// Wraps [bytes] so an error raised while the response BODY is still
+  /// streaming — a connection dropping mid-turn, a socket reset — surfaces
+  /// as [TransportException] like every other transport failure, instead of
+  /// a raw `http.ClientException`/`SocketException` escaping the sealed
+  /// [ChatGptException] hierarchy this package promises.
+  ///
+  /// This only covers the earlier try/catch's blind spot: [stream] already
+  /// wraps the request phase (`_client.send`) and the status-line phase (the
+  /// `_throwForStatus` call above); returning `response.stream` unwrapped
+  /// left everything after that — the body itself — with no equivalent
+  /// coverage (Final review, Blocker 3).
+  Stream<List<int>> _wrapBodyErrors(Stream<List<int>> bytes) =>
+      bytes.transform<List<int>>(
+        StreamTransformer.fromHandlers(
+          handleError: (Object error, StackTrace stackTrace, sink) {
+            sink.addError(TransportException('$error'), stackTrace);
+          },
+        ),
+      );
 
   @override
   Future<String> get(String path, {required String deviceId}) async {

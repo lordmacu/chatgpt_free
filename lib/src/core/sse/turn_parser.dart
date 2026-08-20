@@ -40,6 +40,7 @@ class TurnParser {
 
   String _emittedText = '';
   bool _downgradeReported = false;
+  bool _searchStartedReported = false;
   final Set<String> _seenWidgets = <String>{};
 
   /// Parses [frames], emitting events as they become known.
@@ -64,6 +65,7 @@ class TurnParser {
       yield* _emitTextDelta();
       yield* _emitCitations();
       yield* _emitDowngrade();
+      yield* _emitSearchStarted();
     }
 
     yield* _emitCanvas();
@@ -82,9 +84,14 @@ class TurnParser {
         if (id is String) conversationId = id;
       case 'conversation_detail_metadata':
         limits = _parseLimits(event);
-      case 'url_moderation':
-        final url = event['url'];
-        if (url is String) yield SearchStarted([url]);
+      // Deliberately no case here for 'url_moderation': real frames (see
+      // test/fixtures/web_search.sse lines 70/78) carry the URL nested at
+      // `url_moderation_result.full_url`, never at a top-level `url` key —
+      // reading `event['url']` here was always null, so this event type
+      // never fired against real traffic (Final review, Blocker 2). It also
+      // never carries search *queries*, only URLs already found, so it is
+      // not the right source for [SearchStarted] even once read correctly.
+      // See [_emitSearchStarted] for where the real queries live.
       default:
         return;
     }
@@ -255,6 +262,35 @@ class TurnParser {
       _downgradeReported = true;
       yield ModelDowngraded(requested: requestedModel, actual: slug);
     }
+  }
+
+  // The backend announces a web search on the tool message it uses to run
+  // it (author.role == 'tool', author.name == 'web.run'), as
+  // `/message/metadata/search_model_queries/queries` — see
+  // test/fixtures/web_search.sse line 38. That tool message occupies the
+  // shared document slot only briefly: later deltas in the same turn
+  // replace `/message` wholesale with the next message in the multiplex
+  // (the assistant's own reply, citation-carrying messages, and so on), so
+  // by the time a consumer might think to look, `search_model_queries` is
+  // already gone from `_applier.document`. This must therefore be checked
+  // on every delta, right after `_applier.apply`, not lazily from a getter
+  // the way `_emitCitations`/`_emitDowngrade` can afford to.
+  Stream<ChatEvent> _emitSearchStarted() async* {
+    if (_searchStartedReported) return;
+    final message = _applier.document['message'];
+    if (message is! Map) return;
+    final metadata = message['metadata'];
+    if (metadata is! Map) return;
+    final searchModelQueries = metadata['search_model_queries'];
+    if (searchModelQueries is! Map) return;
+    final queries = searchModelQueries['queries'];
+    if (queries is! List || queries.isEmpty) return;
+
+    final strings = [for (final q in queries) if (q is String) q];
+    if (strings.isEmpty) return;
+
+    _searchStartedReported = true;
+    yield SearchStarted(strings);
   }
 
   Stream<ChatEvent> _emitGenuiWidgets() async* {

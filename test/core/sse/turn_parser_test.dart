@@ -54,6 +54,29 @@ void main() {
     expect(text, contains('Ulaanbaatar'));
   });
 
+  test(
+      'web search: emits SearchStarted with the real queries '
+      '(Final review, Blocker 2)', () async {
+    // Regression: _handleControl's 'url_moderation' case read event['url'],
+    // but real frames (web_search.sse lines 70/78) carry the URL nested at
+    // url_moderation_result.full_url and have no top-level 'url' key —
+    // parsing this fixture used to yield zero SearchStarted events. The
+    // real queries sit at message.metadata.search_model_queries.queries on
+    // the web.run tool message (web_search.sse line 38).
+    final parser = TurnParser(requestedModel: 'auto');
+    final events = await parser.parse(framesOf('web_search')).toList();
+
+    final started = events.whereType<SearchStarted>().toList();
+    expect(started, hasLength(1));
+    expect(
+      started.single.queries,
+      containsAll(<String>[
+        'capital of Mongolia Ulaanbaatar official',
+        'Mongolia capital Ulaanbaatar Britannica',
+      ]),
+    );
+  });
+
   test('canvas: emits a CanvasDocument from the :::writing block', () async {
     final parser = TurnParser(requestedModel: 'auto');
     final events = await parser.parse(framesOf('canvas')).toList();

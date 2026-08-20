@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:chatgpt_free/src/core/errors.dart';
 import 'package:chatgpt_free/src/core/sse/reader.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +45,25 @@ void main() {
 
     expect(frames.length, 1);
     expect(frames.single.data, '{"v":"a"}');
+  });
+
+  test(
+      'a truncated multi-byte UTF-8 sequence raises ProtocolException, not '
+      'a raw FormatException (Final review, Blocker 3)', () async {
+    // 0xC3 is the lead byte of a 2-byte UTF-8 sequence (e.g. 'é' is 0xC3
+    // 0xA9); ending the stream right after it — with no continuation byte
+    // ever coming — is exactly what a connection dropping mid-character
+    // produces. The Utf8Decoder used inside readSse raises a raw
+    // FormatException("Missing extension byte") for this; that must not
+    // escape the sealed ChatGptException hierarchy.
+    final chunks = Stream<List<int>>.fromIterable([
+      [...utf8.encode('data: caf'), 0xC3],
+    ]);
+
+    await expectLater(
+      readSse(chunks).toList(),
+      throwsA(isA<ProtocolException>()),
+    );
   });
 
   test('handles a payload split across chunk boundaries', () async {
