@@ -1,5 +1,10 @@
+import 'package:uuid/uuid.dart';
+
+import 'api.dart';
+import 'constants.dart';
 import 'errors.dart';
 import 'events.dart';
+import 'models/models.dart';
 import 'models/options.dart';
 import 'session.dart';
 import 'store.dart';
@@ -61,6 +66,32 @@ class ChatGptClient {
           'quota still exhausted after rotating the device: ${e.message}');
     }
   }
+
+  /// Lists the models available to this anonymous session, with capabilities.
+  Future<List<ModelInfo>> models() async => parseModels(
+      await _transport.get('$kAnonPrefix/models', deviceId: _probeDeviceId));
+
+  /// Reads the current quota state without sending a message.
+  Future<Limits> limits() async => parseLimits(await _transport.post(
+        '$kAnonPrefix/conversation/init',
+        {'conversation_mode_kind': 'primary_assistant'},
+        deviceId: _probeDeviceId,
+      ));
+
+  /// Translates [text] into [target]. Spends no chat message.
+  Future<String> translate(String text,
+          {required String target, String? source}) async =>
+      parseTranslation(await _transport.post(
+        '$kAnonPrefix/language-learning-block/translate',
+        {
+          'text': text,
+          'target_language': target,
+          if (source != null) 'source_language': source,
+        },
+        deviceId: _probeDeviceId,
+      ));
+
+  final String _probeDeviceId = const Uuid().v4();
 
   /// Releases the transport.
   void close() => _transport.close();
