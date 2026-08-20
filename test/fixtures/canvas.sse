@@ -1,0 +1,62 @@
+event: delta_encoding
+data: "v1"
+
+data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiI2NjIxNTQ0NGRkMzg0ZjBiODI5ZjljZjNlN2VkZTA0YyIsImNvbmR1aXRfbG9jYXRpb24iOiIxMC4xMjkuMjA4LjE0Nzo4MzA2IiwiY2x1c3RlciI6InVuaWZpZWQtNDEiLCJpYXQiOjE3ODcyNDIzNjgsImV4cCI6MTc4NzI1Njc2OCwidHVybl90b3BpY19pZCI6ImNvbnZlcnNhdGlvbi10dXJuLTJlYzE0YWIzLWVmOGUtNGFkNC1iODViLWMwNTUxZTJiZTZmNCJ9.24jf5xvkEzQ4_jWAAsWYWtuXqp41OUnXjMHFL4scg2rYS9T3sWlP9FdEGXm3NYTp3sIDJ-ZOcfgF4K5XZRVmwQ","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+event: delta
+data: {"p":"","o":"add","v":{"message":{"id":"02868e39-3299-4a4c-9fc8-5bfd024ffa9f","author":{"role":"user","name":null,"metadata":{}},"create_time":1787242367.203755,"update_time":null,"content":{"content_type":"text","parts":["Escribe un documento corto sobre el mar."]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_source":null,"turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","resolved_model_slug":"gpt-5-6","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":0}   
+
+event: delta
+data: {"v":{"message":{"id":"71215fdf-058f-4463-b176-51e3019abf10","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"rebase_system_message":true,"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_type":"next","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"02868e39-3299-4a4c-9fc8-5bfd024ffa9f","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":1}     
+
+event: delta
+data: {"v":{"message":{"id":"44ba3f9c-7ff0-4c84-9c94-7f54fffbd089","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"rebase_developer_message":true,"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_type":"next","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"71215fdf-058f-4463-b176-51e3019abf10","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":2}  
+
+event: delta
+data: {"v":{"message":{"id":"33e7ba5d-0f30-4627-aab2-674c8420b3b4","author":{"role":"system","name":null,"metadata":{}},"create_time":1787242367.236215,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_type":"next","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"44ba3f9c-7ff0-4c84-9c94-7f54fffbd089","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":3}     
+
+event: delta
+data: {"v":{"message":{"id":"14443600-b665-4b35-baeb-b996242079c7","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"exclusive_key":"writing_blocks","is_visually_hidden_from_conversation":true,"rebase_developer_message":false,"cot_version":"v5","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_type":"next","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"33e7ba5d-0f30-4627-aab2-674c8420b3b4","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":4}
+
+event: delta
+data: {"v":{"message":{"id":"7271a189-37c1-42f4-a446-f27ac8c771ce","author":{"role":"assistant","name":null,"metadata":{}},"create_time":1787242368.326231,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"in_progress","end_turn":null,"weight":1.0,"metadata":{"citations":[],"content_references":[],"story_events":[],"resolved_model_slug":"gpt-5-6","cot_version":"v5","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_type":"next","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"14443600-b665-4b35-baeb-b996242079c7","model_switcher_deny":[]},"recipient":"all","channel":"final"},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":5}    
+
+data: {"type":"message_marker","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","message_id":"7271a189-37c1-42f4-a446-f27ac8c771ce","marker":"user_visible_token","event":"first"}
+
+data: {"type":"message_marker","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","message_id":"7271a189-37c1-42f4-a446-f27ac8c771ce","marker":"final_channel_token","event":"first"}
+
+event: delta
+data: {"p":"/message/content/parts/0","o":"append","v":":::writing{variant=\"document\" id=\"58321\""}
+
+event: delta
+data: {"v":" title=\"El mar\"}\n\n#"} 
+
+event: delta
+data: {"v":" El mar\n\nEl mar es una"}
+
+event: delta
+data: {"v":" de las maravillas naturales m\u00e1s grandes del planeta. Sus aguas cubren gran parte de la superficie terrestre y son el hogar de millones de especies, desde peque\u00f1os organismos hasta enormes ballenas.\n\nAdem\u00e1s de su belleza, el mar es fundamental para la vida. Ayuda a regular el clima, produce una parte"}  
+
+event: delta
+data: {"v":" importante del ox\u00edgeno que respiramos y proporciona alimentos y recursos a muchas comunidades. Tambi\u00e9n es un lugar de recreaci\u00f3n e inspiraci\u00f3n para las personas.\n\nSin embargo, los mares enfrentan problemas como la"}    
+
+data: {"type":"title_generation","title":"Escribir documento sobre mar","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+event: delta
+data: {"v":" contaminaci\u00f3n por pl\u00e1sticos, la pesca excesiva y el cambio clim\u00e1tico. Por eso, es responsabilidad de todos protegerlos y utilizar sus recursos de manera sostenible.\n\nCuidar el mar significa cuidar una"}      
+
+event: delta
+data: {"p":"","o":"patch","v":[{"p":"/message/content/parts/0","o":"append","v":" parte esencial de nuestro planeta y de nuestro propio futuro.\n:::"},{"p":"/message/status","o":"replace","v":"finished_successfully"},{"p":"/message/end_turn","o":"replace","v":true},{"p":"/message/metadata","o":"append","v":{"is_complete":true,"search_result_groups":[],"can_save":true,"finish_details":{"type":"stop","stop_tokens":[200002]}}}]} 
+
+data: {"type":"message_marker","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","message_id":"7271a189-37c1-42f4-a446-f27ac8c771ce","marker":"last_token","event":"last"}
+
+data: {"type":"title_generation","title":"Escribir sobre el mar","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+data: {"type":"server_ste_metadata","metadata":{"server_ttfvt_ms":4268.985806033015,"conduit_prewarmed":false,"plan_type":"guest","plan_type_bucket":"guest","user_agent":"app_android","service":null,"tool_name":null,"tool_invoked":false,"fast_convo":true,"warmup_state":"new","is_first_turn":true,"cluster_region":"southcentralus","model_slug":"gpt-5-6","requested_model_experience":"instant","product_experience":"chat","region":null,"is_multimodal":null,"did_auto_switch_to_reasoning":false,"auto_switcher_race_winner":null,"is_autoswitcher_enabled":false,"is_search":null,"did_prompt_contain_image":false,"search_tool_call_count":null,"search_tool_query_types":null,"message_id":"02868e39-3299-4a4c-9fc8-5bfd024ffa9f","request_id":"c040b484-e240-4be7-a36e-8b6422db393b","turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","turn_trace_id":"707b346f-740a-46df-963f-8a3f6bd380f9","a32e6ebcb":1,"resume_with_websockets":true,"low_turn_topic_ttl":false,"streaming_async_status":false,"replace_stream_status":true,"temporal_conversation_turn":false,"pro_mode_turn_topic_streaming":null,"turn_use_case":"text","turn_mode":"default"},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+data: {"type":"message_stream_complete","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+data: {"type":"conversation_detail_metadata","banner_info":null,"blocked_features":[],"model_limits":[],"limits_progress":[{"feature_name":"file_upload","remaining":3,"reset_after":"2026-08-21T16:12:50.262498+00:00"},{"feature_name":"paste_text_to_file","remaining":3,"reset_after":"2026-08-21T16:12:50.262515+00:00"},{"feature_name":"dictation","remaining":1,"reset_after":"2026-08-27T16:12:50.262876+00:00"}],"default_model_slug":"auto","atlas_mode_enabled":null,"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+
+data: [DONE]
+

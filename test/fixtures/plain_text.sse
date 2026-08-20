@@ -1,0 +1,45 @@
+event: delta_encoding
+data: "v1"
+
+data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiI0ZGY1MDkwMTI0NWM0NzQwOGYwMjkxNDYzYTM5OGI2YSIsImNvbmR1aXRfbG9jYXRpb24iOiIxMC4xMjguMTY1LjE5NTo4MzA2IiwiY2x1c3RlciI6InVuaWZpZWQtNDEiLCJpYXQiOjE3ODcyNDIzNDcsImV4cCI6MTc4NzI1Njc0NywidHVybl90b3BpY19pZCI6ImNvbnZlcnNhdGlvbi10dXJuLTVmNGE3YTcyLWYwZGEtNGEyMy05OTZlLTE5OTBlZGFjYWUwMiJ9.XSYL4qCYqB0-wXxV43YAa4GYFVaXUIahvJEAfvM5DUADl2dyL4j3BrT7BMKV1T1Yk_JUu0dJuOOBBAWxwJ6I-A","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+
+event: delta
+data: {"p":"","o":"add","v":{"message":{"id":"e384738a-24d5-4ea6-be10-63710f139959","author":{"role":"user","name":null,"metadata":{}},"create_time":1787242346.597435,"update_time":null,"content":{"content_type":"text","parts":["Di exactamente: hola mundo"]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_source":null,"turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","resolved_model_slug":"gpt-5-6","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":0} 
+
+event: delta
+data: {"v":{"message":{"id":"1b60b77f-9593-416e-90f6-2280bdaa1f62","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"rebase_system_message":true,"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_type":"next","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"e384738a-24d5-4ea6-be10-63710f139959","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":1}     
+
+event: delta
+data: {"v":{"message":{"id":"ca31025c-cd8f-43da-8bd9-c2414ce25aea","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"rebase_developer_message":true,"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_type":"next","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"1b60b77f-9593-416e-90f6-2280bdaa1f62","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":2}  
+
+event: delta
+data: {"v":{"message":{"id":"16a4aa40-e35d-484c-8668-aedab5d47015","author":{"role":"system","name":null,"metadata":{}},"create_time":1787242346.62127,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"is_visually_hidden_from_conversation":true,"cot_version":"v5","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_type":"next","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"ca31025c-cd8f-43da-8bd9-c2414ce25aea","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":3}      
+
+event: delta
+data: {"v":{"message":{"id":"cb4ab863-2224-42bd-b463-6f47d82d3f01","author":{"role":"system","name":null,"metadata":{}},"create_time":null,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"finished_successfully","end_turn":true,"weight":0.0,"metadata":{"exclusive_key":"writing_blocks","is_visually_hidden_from_conversation":true,"rebase_developer_message":false,"cot_version":"v5","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_type":"next","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"16a4aa40-e35d-484c-8668-aedab5d47015","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":4}
+
+event: delta
+data: {"v":{"message":{"id":"c47cbaf1-db59-4b53-9d5f-b556935fa2fb","author":{"role":"assistant","name":null,"metadata":{}},"create_time":1787242347.073499,"update_time":null,"content":{"content_type":"text","parts":[""]},"status":"in_progress","end_turn":null,"weight":1.0,"metadata":{"citations":[],"content_references":[],"story_events":[],"resolved_model_slug":"gpt-5-6","cot_version":"v5","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_type":"next","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","model_slug":"gpt-5-6","default_model_slug":"auto","parent_id":"cb4ab863-2224-42bd-b463-6f47d82d3f01","model_switcher_deny":[]},"recipient":"all","channel":"final"},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":5}    
+
+data: {"type":"message_marker","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","message_id":"c47cbaf1-db59-4b53-9d5f-b556935fa2fb","marker":"user_visible_token","event":"first"}
+
+data: {"type":"message_marker","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","message_id":"c47cbaf1-db59-4b53-9d5f-b556935fa2fb","marker":"final_channel_token","event":"first"}
+
+event: delta
+data: {"p":"/message/content/parts/0","o":"append","v":"hola mundo"}  
+
+event: delta
+data: {"p":"","o":"patch","v":[{"p":"/message/status","o":"replace","v":"finished_successfully"},{"p":"/message/end_turn","o":"replace","v":true},{"p":"/message/metadata","o":"append","v":{"can_save":true,"finish_details":{"type":"stop","stop_tokens":[200002]},"is_complete":true,"search_result_groups":[]}}]} 
+
+data: {"type":"message_marker","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","message_id":"c47cbaf1-db59-4b53-9d5f-b556935fa2fb","marker":"last_token","event":"last"}
+
+data: {"type":"title_generation","title":"Decir hola mundo","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+
+data: {"type":"server_ste_metadata","metadata":{"server_ttfvt_ms":2469.4340522401035,"conduit_prewarmed":false,"plan_type":"guest","plan_type_bucket":"guest","user_agent":"app_android","service":null,"tool_name":null,"tool_invoked":false,"fast_convo":true,"warmup_state":"new","is_first_turn":true,"cluster_region":"southcentralus","model_slug":"gpt-5-6","requested_model_experience":"instant","product_experience":"chat","region":null,"is_multimodal":null,"did_auto_switch_to_reasoning":false,"auto_switcher_race_winner":null,"is_autoswitcher_enabled":false,"is_search":null,"did_prompt_contain_image":false,"search_tool_call_count":null,"search_tool_query_types":null,"message_id":"e384738a-24d5-4ea6-be10-63710f139959","request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","turn_trace_id":"721d875f-4aa9-4374-ab19-ba263072df62","a32e6ebcb":1,"resume_with_websockets":true,"low_turn_topic_ttl":false,"streaming_async_status":false,"replace_stream_status":true,"temporal_conversation_turn":false,"pro_mode_turn_topic_streaming":null,"turn_use_case":"text","turn_mode":"default"},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+
+data: {"type":"message_stream_complete","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+
+data: {"type":"conversation_detail_metadata","banner_info":null,"blocked_features":[],"model_limits":[],"limits_progress":[{"feature_name":"file_upload","remaining":3,"reset_after":"2026-08-21T16:12:28.014904+00:00"},{"feature_name":"paste_text_to_file","remaining":3,"reset_after":"2026-08-21T16:12:28.014925+00:00"},{"feature_name":"dictation","remaining":1,"reset_after":"2026-08-27T16:12:28.015397+00:00"}],"default_model_slug":"auto","atlas_mode_enabled":null,"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+
+data: [DONE]
+
