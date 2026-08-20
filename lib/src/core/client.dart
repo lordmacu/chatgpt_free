@@ -13,12 +13,32 @@ import 'transport.dart';
 /// Entry point: creates sessions and owns the quota-rotation policy.
 class ChatGptClient {
   /// Creates a client.
-  ChatGptClient({Transport? transport, ChatGptStore? store})
-      : _transport = transport ?? HttpTransport(),
+  ///
+  /// [maxRotations] caps how many times [sendWithRotation] will rotate the
+  /// device id and retry after an hourly-cap rejection before giving up
+  /// with [QuotaExceededException]. Defaults to 1 (rotate once, retry
+  /// once) so existing callers see no behaviour change. Rotating clears
+  /// the cap immediately in the common case, but the cap also has an IP
+  /// component — measured runs from the same IP tripped it again after as
+  /// few as 31 messages on a device that had just rotated, sometimes as
+  /// many as 45 — so under sustained load a freshly rotated device can be
+  /// born already limited. Raise this for an app that would rather spend a
+  /// few more device ids than surface [QuotaExceededException] under that
+  /// kind of load.
+  ChatGptClient({
+    Transport? transport,
+    ChatGptStore? store,
+    this.maxRotations = 1,
+  })  : _transport = transport ?? HttpTransport(),
         _store = store ?? InMemoryStore();
 
   final Transport _transport;
   final ChatGptStore _store;
+
+  /// How many times [sendWithRotation] rotates the device id and retries
+  /// before giving up with [QuotaExceededException]. See the constructor's
+  /// doc comment.
+  final int maxRotations;
 
   /// Starts a new conversation with a brand-new anonymous device id.
   ///
@@ -40,43 +60,43 @@ class ChatGptClient {
         systemPrompt: systemPrompt,
       );
 
-  /// Sends a message, rotating the device id once if the hourly cap trips.
+  /// Sends a message, rotating the device id up to [maxRotations] times if
+  /// the hourly cap trips.
   ///
-  /// A `429`/`403` is not fatal: a fresh device id clears it immediately.
-  /// A silent model downgrade is *not* a rotation trigger — the backend answers
-  /// 200, and throwing away conversation state to chase a model is the app's
-  /// call, not the package's.
+  /// A `429`/`403` is not fatal: a fresh device id clears it immediately in
+  /// the common case. A silent model downgrade is *not* a rotation trigger
+  /// — the backend answers 200, and throwing away conversation state to
+  /// chase a model is the app's call, not the package's.
   Stream<ChatEvent> sendWithRotation(
     ChatGptSession session,
     String message, {
     SendOptions options = const SendOptions(),
     List<TextAttachment> attachments = const [],
   }) async* {
-    // Deliberately `await for` + `yield`, not `yield*`: inside an async*
-    // generator, `try { yield* stream; } catch (e) { ... }` does NOT catch
-    // an error raised by the delegate stream — the exception escapes the
-    // enclosing try/catch uncaught (verified against the Dart SDK in use;
-    // `await for` does not have this problem). Using `yield*` here would
-    // make the rotation logic below unreachable.
-    try {
-      await for (final event
-          in session.send(message, options: options, attachments: attachments)) {
-        yield event;
+    var rotations = 0;
+    while (true) {
+      // Deliberately `await for` + `yield`, not `yield*`: inside an async*
+      // generator, `try { yield* stream; } catch (e) { ... }` does NOT
+      // catch an error raised by the delegate stream — the exception
+      // escapes the enclosing try/catch uncaught (verified against the
+      // Dart SDK in use; `await for` does not have this problem). Using
+      // `yield*` here would make the rotation logic below unreachable.
+      try {
+        await for (final event in session.send(message,
+            options: options, attachments: attachments)) {
+          yield event;
+        }
+        return;
+      } on RateLimitedException catch (e) {
+        if (rotations >= maxRotations) {
+          throw QuotaExceededException(
+              'quota still exhausted after $rotations '
+              '${rotations == 1 ? 'rotation' : 'rotations'}: ${e.message}');
+        }
+        rotations++;
+        session.rotateDevice();
+        yield QuotaRotated(e.message);
       }
-      return;
-    } on RateLimitedException catch (e) {
-      session.rotateDevice();
-      yield QuotaRotated(e.message);
-    }
-
-    try {
-      await for (final event
-          in session.send(message, options: options, attachments: attachments)) {
-        yield event;
-      }
-    } on RateLimitedException catch (e) {
-      throw QuotaExceededException(
-          'quota still exhausted after rotating the device: ${e.message}');
     }
   }
 
