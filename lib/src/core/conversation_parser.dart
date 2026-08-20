@@ -44,7 +44,11 @@ ConversationDetail parseConversation(String body, {required String id}) {
       // System messages are hidden scaffolding, and empty turns are the tree's
       // root nodes — neither belongs in a transcript.
       if ((role == 'user' || role == 'assistant') && text.trim().isNotEmpty) {
-        ordered.add(ChatMessage(role: role! as String, text: text));
+        ordered.add(ChatMessage(
+          role: role! as String,
+          // A fetched user turn carries the wire prompt, scaffolding and all.
+          text: role == 'user' ? stripPromptScaffolding(text) : text,
+        ));
       }
     }
     node = entry['parent'];
@@ -55,6 +59,41 @@ ConversationDetail parseConversation(String body, {required String id}) {
     title: decoded['title'] as String?,
     messages: ordered.reversed.toList(growable: false),
   );
+}
+
+/// Strips the scaffolding this package prepends to a user's prompt.
+///
+/// The system prompt, the JSON-mode instruction and its retraction, attached
+/// file bodies and a replayed transcript all travel INSIDE the user turn,
+/// because this backend has no separate field for any of them. The server
+/// therefore stores them as part of what the user said, and a conversation
+/// fetched back by id shows the user their own plumbing.
+///
+/// Every marker here is one this package writes in `buildConversationBody` or
+/// `ChatGptSession._withReplayedHistory`; nothing guesses at user text.
+String stripPromptScaffolding(String text) {
+  const markers = [
+    '[System instructions: ',
+    'You must respond with valid JSON only.',
+    'Stop answering in JSON.',
+    '[Attached file ',
+    '[Prior conversation — use this as context:',
+  ];
+
+  // Blocks are joined with a blank line, and the user's own message is last.
+  final blocks = text.split('\n\n');
+  final kept = <String>[];
+  var stillLeading = true;
+  for (final block in blocks) {
+    final isScaffold = markers.any((m) => block.trimLeft().startsWith(m));
+    if (stillLeading && isScaffold) continue;
+    stillLeading = false;
+    kept.add(block);
+  }
+  final result = kept.join('\n\n').trim();
+  // Never hand back nothing: a prompt that was ONLY scaffolding is not
+  // something this function should erase.
+  return result.isEmpty ? text.trim() : result;
 }
 
 String _snip(String s) => s.substring(0, s.length.clamp(0, 200));

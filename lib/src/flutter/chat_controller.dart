@@ -25,12 +25,21 @@ class ChatController extends ChangeNotifier {
     String systemPrompt = '',
     String model = 'auto',
     bool? webSearch,
+    this.onLog,
   })  : _client = client ?? ChatGptClient(),
         _ownsClient = client == null,
         _model = model,
         _webSearch = webSearch {
     _session = _client.newSession(systemPrompt: systemPrompt);
   }
+
+  /// Optional timeline of a turn, for diagnosing why a UI still looks busy.
+  ///
+  /// The backend keeps the stream open well after the reply is on screen — it
+  /// generates the conversation title, then reports quota — so the gap between
+  /// `reply complete` and `turn closed` here is the backend's, not this
+  /// package's.
+  final void Function(String line)? onLog;
 
   final ChatGptClient _client;
   final bool _ownsClient;
@@ -105,6 +114,7 @@ class ChatController extends ChangeNotifier {
 
   List<ChatMessage> _messages = const [];
   bool _isStreaming = false;
+  bool _isWritingReply = false;
   ChatGptException? _error;
   String? _downgradeNotice;
 
@@ -127,6 +137,15 @@ class ChatController extends ChangeNotifier {
   /// [StateError] rather than change the running turn's settings out from
   /// under it — see [model]'s doc comment.
   bool get isStreaming => _isStreaming;
+
+  /// True only while the assistant is actually writing.
+  ///
+  /// Goes false as soon as the reply is complete, several seconds before the
+  /// turn closes — the backend keeps the stream open to generate the title and
+  /// report quota, measured at about five seconds on a real turn. Drive your
+  /// typing indicator from this, not [isStreaming], or it hangs on screen long
+  /// after the answer arrived.
+  bool get isWritingReply => _isWritingReply;
 
   /// The last error, if any.
   ChatGptException? get error => _error;
@@ -191,7 +210,17 @@ class ChatController extends ChangeNotifier {
     _lastPrompt = text;
     _error = null;
     _isStreaming = true;
+    _isWritingReply = true;
     notifyListeners();
+
+    final started = DateTime.now();
+    void log(String what) {
+      final ms = DateTime.now().difference(started).inMilliseconds;
+      onLog?.call('[chatgpt_free] +${ms}ms $what');
+    }
+
+    log('turn started');
+    var firstDelta = true;
 
     final completer = Completer<void>();
     _pendingSend = completer;
@@ -204,6 +233,17 @@ class ChatController extends ChangeNotifier {
     )
         .listen(
       (event) {
+        if (event is TextDelta && firstDelta) {
+          firstDelta = false;
+          log('first text');
+        }
+        if (event is ReplyCompleted) {
+          _isWritingReply = false;
+          log('reply complete — indicator off, stream still open');
+        }
+        if (event is TurnCompleted) {
+          log('turn closed (model: ${event.actualModel})');
+        }
         if (event is ModelDowngraded) {
           _downgradeNotice =
               'Requested ${event.requested}, answered by ${event.actual}.';

@@ -87,7 +87,7 @@ void main() {
 
   testWidgets(
       'ChatView renders the transcript, disables the composer '
-      'while streaming, and shows a downgrade notice', (tester) async {
+      'while streaming, and keeps the downgrade out of the UI', (tester) async {
     final transport = FakeTransport();
     final controller = ChatController(
       client: ChatGptClient(transport: transport),
@@ -129,8 +129,12 @@ void main() {
     expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
     expect(find.byType(TypingIndicator), findsNothing);
 
+    // The controller still reports the downgrade — that is the package's
+    // differentiating signal — but ChatView no longer paints a banner for it:
+    // the anonymous backend ignores the requested model on every turn, so the
+    // banner fired constantly and drowned the case it exists for.
     expect(controller.downgradeNotice, isNotNull);
-    expect(find.textContaining('gpt-5-6'), findsOneWidget);
+    expect(find.textContaining('gpt-5-6-imaginary'), findsNothing);
   });
 
   // Appended in Fix round 1: TypingIndicator drives a repeating

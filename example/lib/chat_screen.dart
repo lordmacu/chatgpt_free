@@ -55,24 +55,10 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _jsonMode = false;
   bool _canvas = false;
 
-  /// Fetched from the backend rather than hardcoded: /models reports exactly
-  /// what this session may use, with each model's capabilities.
-  List<ModelInfo> _models = const [];
-
   @override
   void initState() {
     super.initState();
     _conversations.add(_newConversation());
-    _loadModels();
-  }
-
-  Future<void> _loadModels() async {
-    try {
-      final models = await widget.client.models();
-      if (mounted) setState(() => _models = models);
-    } on ChatGptException {
-      // The hardcoded fallback keeps the picker usable offline.
-    }
   }
 
   Future<void> _showLimits() async {
@@ -121,6 +107,10 @@ class _ChatScreenState extends State<ChatScreen> {
     final controller = ChatController(
       client: widget.client,
       systemPrompt: 'Answer briefly.',
+      // Visible in `adb logcat`. The gap between "reply complete" and "turn
+      // closed" is the backend generating the conversation title, not the
+      // package being slow.
+      onLog: debugPrint,
     );
     // Rebuild the drawer's titles as turns land.
     controller.addListener(_onControllerChanged);
@@ -217,7 +207,9 @@ class _ChatScreenState extends State<ChatScreen> {
             onDelete: _delete,
           ),
           appBar: AppBar(
-            title: const Text('chatgpt_free'),
+            // No title: six actions plus the drawer button leave no room, and
+            // a truncated "cha…" is worse than none.
+            titleSpacing: 0,
             actions: [
               _ToggleAction(
                 on: _controller.webSearch == true,
@@ -228,29 +220,6 @@ class _ChatScreenState extends State<ChatScreen> {
                     ? null
                     : () => _controller.webSearch =
                         !(_controller.webSearch ?? false),
-              ),
-              PopupMenuButton<String>(
-                tooltip: 'Model: ${_controller.model}',
-                enabled: !_controller.isStreaming,
-                initialValue: _controller.model,
-                onSelected: (model) => _controller.model = model,
-                itemBuilder: (context) => [
-                  for (final model in (_models.isEmpty
-                      ? kAvailableModels
-                      : _models.map((m) => m.id)))
-                    PopupMenuItem(value: model, child: Text(model)),
-                ],
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(_controller.model,
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      const Icon(Icons.arrow_drop_down),
-                    ],
-                  ),
-                ),
               ),
               _ToggleAction(
                 on: _jsonMode,

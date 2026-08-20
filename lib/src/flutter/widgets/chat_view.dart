@@ -21,6 +21,13 @@ class ChatView extends StatelessWidget {
   });
 
   /// The controller driving the transcript.
+  ///
+  /// This view deliberately does NOT surface [ChatController.downgradeNotice].
+  /// The anonymous backend ignores the requested model on every turn, so the
+  /// notice would fire constantly and drown the case it exists for — the
+  /// silent cap, where a conversation quietly drops to a smaller model after
+  /// roughly ten turns. The signal is still on the controller; surface it
+  /// yourself if your app requests specific models and wants to know.
   final ChatController controller;
 
   /// Called with the source the reader tapped. Wire it to url_launcher, or
@@ -55,12 +62,6 @@ class ChatView extends StatelessWidget {
           return SafeArea(
             child: Column(
               children: [
-                if (controller.downgradeNotice != null)
-                  MaterialBanner(
-                    backgroundColor: scheme.tertiaryContainer,
-                    content: Text(controller.downgradeNotice!),
-                    actions: const [SizedBox.shrink()],
-                  ),
                 if (controller.error case final QuotaExceededException _)
                   MaterialBanner(
                     backgroundColor: scheme.tertiaryContainer,
@@ -91,7 +92,7 @@ class ChatView extends StatelessWidget {
                     onCitationTap: onCitationTap,
                   ),
                 ),
-                if (controller.isStreaming) const TypingIndicator(),
+                if (controller.isWritingReply) const TypingIndicator(),
                 MessageComposer(
                   onSend: (text) => controller.send(text, options: sendOptions),
                   enabled: !controller.isStreaming,

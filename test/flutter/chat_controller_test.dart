@@ -421,4 +421,25 @@ void main() {
     expect(title, 'Di solo uno');
     expect(controller.messages.map((m) => m.text), ['di solo: uno', 'uno']);
   });
+
+  test('loadHistory leaves local history alone when the fetch comes back empty',
+      () async {
+    // Regression, found on device: switching conversations emptied the
+    // transcript. loadHistory() replaced history unconditionally, so a fetch
+    // that resolved to zero messages wiped what was on screen.
+    final transport = FakeTransport()
+      ..getResponse =
+          jsonEncode({'title': 'x', 'mapping': <String, dynamic>{}});
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    await controller.send('hola');
+    final before = controller.messages.length;
+    expect(before, greaterThan(0));
+
+    await controller.loadHistory();
+
+    expect(controller.messages.length, before,
+        reason: 'an empty fetch must not destroy the transcript');
+  });
 }

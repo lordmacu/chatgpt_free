@@ -110,6 +110,19 @@ final class QuotaRotated extends ChatEvent {
   final String reason;
 }
 
+/// The assistant finished writing, but the stream is still open.
+///
+/// The backend keeps sending after the last text delta — it generates the
+/// conversation title, then the quota snapshot — which measured at about five
+/// seconds on a real turn. A UI that waits for [TurnCompleted] to stop its
+/// typing indicator therefore looks stuck long after the answer is on screen.
+/// Stop the indicator here; keep the composer disabled until [TurnCompleted],
+/// because the session still has the turn open.
+final class ReplyCompleted extends ChatEvent {
+  /// Creates a reply-finished event.
+  const ReplyCompleted();
+}
+
 /// The turn finished.
 final class TurnCompleted extends ChatEvent {
   /// Creates a completion event.

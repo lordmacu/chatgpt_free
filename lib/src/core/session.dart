@@ -404,6 +404,13 @@ class ChatGptSession {
           deviceId: _deviceId),
       id: id,
     );
+    // Never trade a transcript for nothing. A fetch that comes back empty —
+    // an unresolvable current_node, a conversation created under a device this
+    // session has since rotated away from — must leave local history alone,
+    // not wipe it. Replacing good content with nothing is a data loss the
+    // caller cannot undo.
+    if (detail.messages.isEmpty) return detail;
+
     _history
       ..clear()
       ..addAll(detail.messages);

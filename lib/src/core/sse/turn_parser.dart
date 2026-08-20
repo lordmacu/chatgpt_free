@@ -42,6 +42,7 @@ class TurnParser {
   bool _downgradeReported = false;
   bool _searchStartedReported = false;
   final Set<String> _seenWidgets = <String>{};
+  bool _replyCompleted = false;
 
   /// Parses [frames], emitting events as they become known.
   Stream<ChatEvent> parse(Stream<SseFrame> frames) async* {
@@ -69,6 +70,12 @@ class TurnParser {
     }
 
     yield* _emitCanvas();
+    // Guarantee it: a stream that ends without message_stream_complete must
+    // still let a UI stop its indicator.
+    if (!_replyCompleted) {
+      _replyCompleted = true;
+      yield const ReplyCompleted();
+    }
     yield TurnCompleted(
       actualModel: actualModel,
       finishReason: _finishReason(),
