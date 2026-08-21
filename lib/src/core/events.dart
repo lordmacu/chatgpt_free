@@ -156,6 +156,155 @@ final class TurnCompleted extends ChatEvent {
   final Limits? limits;
 }
 
+/// Everything one turn produced, once it has finished.
+///
+/// A turn is more than its text: the sources it searched, the document it
+/// wrote, the model that actually answered. [collectText] gives you the words
+/// and drops the rest, which is fine until you ask something that has sources
+/// — then you are back to a stream for want of one field. This is the whole
+/// turn, awaited.
+class ChatAnswer {
+  /// Creates an answer.
+  const ChatAnswer({
+    required this.text,
+    required this.model,
+    this.citations = const [],
+    this.searchQueries = const [],
+    this.widgets = const [],
+    this.imageUrls = const [],
+    this.canvas,
+    this.downgrade,
+    this.title,
+    this.finishReason,
+    this.limits,
+    this.rotations = const [],
+  });
+
+  /// The reply, already folded — see [collectText] for why that matters.
+  final String text;
+
+  /// The model that actually answered, which is not always the one asked for.
+  final String model;
+
+  /// Sources, when the backend searched the web.
+  final List<Citation> citations;
+
+  /// What it searched for.
+  final List<String> searchQueries;
+
+  /// Generative-UI widgets the backend emitted.
+  final List<GenuiWidgetEvent> widgets;
+
+  /// Generated images. Always empty anonymously — image generation is blocked.
+  final List<String> imageUrls;
+
+  /// The document, when the turn ran in Canvas mode.
+  final CanvasDocument? canvas;
+
+  /// Set when the backend quietly answered with a smaller model than asked.
+  final ModelDowngraded? downgrade;
+
+  /// The title the backend gave the conversation, if it named it this turn.
+  final String? title;
+
+  /// Why the turn ended.
+  final String? finishReason;
+
+  /// The quota snapshot the backend attached to the turn.
+  final Limits? limits;
+
+  /// One entry per device id burned to get this answer, when the turn went
+  /// through [ChatGptClient.sendWithRotation] and hit the hourly cap.
+  final List<String> rotations;
+
+  @override
+  String toString() => 'ChatAnswer($model, ${text.length} chars, '
+      '${citations.length} citations)';
+}
+
+/// Everything a turn produced, awaited instead of streamed.
+///
+/// Works over any [ChatEvent] stream, including
+/// [ChatGptClient.sendWithRotation]:
+///
+/// ```dart
+/// final answer = await collectAnswer(client.sendWithRotation(session, '…'));
+/// print(answer.text);
+/// for (final c in answer.citations) print(c.url);
+/// ```
+Future<ChatAnswer> collectAnswer(Stream<ChatEvent> events) async {
+  final buffer = StringBuffer();
+  final citations = <Citation>[];
+  final queries = <String>[];
+  final widgets = <GenuiWidgetEvent>[];
+  final images = <String>[];
+  final rotations = <String>[];
+  CanvasDocument? canvas;
+  ModelDowngraded? downgrade;
+  String? title;
+  String model = '';
+  String? finishReason;
+  Limits? limits;
+
+  await for (final event in events) {
+    switch (event) {
+      case TextDelta(:final text, :final isReset):
+        // Fold, never concatenate: isReset means the backend replaced what it
+        // had already streamed, so appending duplicates discarded text.
+        if (isReset) {
+          buffer
+            ..clear()
+            ..write(text);
+        } else {
+          buffer.write(text);
+        }
+      case SearchStarted(queries: final emitted):
+        queries
+          ..clear()
+          ..addAll(emitted);
+      case CitationsReceived(citations: final received):
+        // The backend re-sends the full set as it grows, so replace.
+        citations
+          ..clear()
+          ..addAll(received);
+      case GenuiWidgetEvent():
+        widgets.add(event);
+      case ImageGenerated(:final url):
+        images.add(url);
+      case CanvasDocument():
+        canvas = event;
+      case ModelDowngraded():
+        downgrade = event;
+      case ConversationTitled(title: final named):
+        title = named;
+      case QuotaRotated(:final reason):
+        rotations.add(reason);
+      case ReplyCompleted():
+        break;
+      case TurnCompleted(:final actualModel, finishReason: final why,
+          limits: final quota):
+        model = actualModel;
+        finishReason = why;
+        limits = quota;
+    }
+  }
+
+  return ChatAnswer(
+    text: buffer.toString(),
+    model: model,
+    citations: List.unmodifiable(citations),
+    searchQueries: List.unmodifiable(queries),
+    widgets: List.unmodifiable(widgets),
+    imageUrls: List.unmodifiable(images),
+    canvas: canvas,
+    downgrade: downgrade,
+    title: title,
+    finishReason: finishReason,
+    limits: limits,
+    rotations: List.unmodifiable(rotations),
+  );
+}
+
 /// The whole reply of a turn, as one string.
 ///
 /// The backend has no non-streaming mode — it answers `text/event-stream`
@@ -176,18 +325,5 @@ final class TurnCompleted extends ChatEvent {
 /// [TextDelta] with `isReset` means the backend replaced what it had already
 /// streamed, so appending every delta duplicates text the backend just
 /// discarded. That shipped as a real bug once.
-Future<String> collectText(Stream<ChatEvent> events) async {
-  final buffer = StringBuffer();
-  await for (final event in events) {
-    if (event is TextDelta) {
-      if (event.isReset) {
-        buffer
-          ..clear()
-          ..write(event.text);
-      } else {
-        buffer.write(event.text);
-      }
-    }
-  }
-  return buffer.toString();
-}
+Future<String> collectText(Stream<ChatEvent> events) async =>
+    (await collectAnswer(events)).text;

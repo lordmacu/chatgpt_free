@@ -1,6 +1,19 @@
 ## 0.1.3
 
-- Documentation only. The README now opens with code: everything the client
+- `session.answer()` and `collectAnswer()`: everything a turn produced, in one
+  `await` — the text, the citations, the search queries, the Canvas document,
+  the generated title, the model that actually replied, the quota snapshot,
+  and any device rotations it took. `ask()` returns the words; asking anything
+  with `webSearch` and then wanting the sources used to mean going back to a
+  stream for want of one field.
+- `collectText()` now delegates to `collectAnswer()`, so the fold that
+  `isReset` requires exists once in the package rather than twice.
+- **Documented the real platform support.** pub.dev reports six platforms
+  because that badge is inferred from imports, and this package imports
+  nothing platform-specific. Web does not work and cannot: the endpoint sends
+  no `Access-Control-Allow-Origin`, and its `Access-Control-Allow-Headers`
+  permits only `content-type` where the protocol needs fourteen headers.
+- The README now opens with code: everything the client
   does, in one block — ask, stream, web search with sources, JSON,
   attachments, translation, quota. It used to open with screenshots of the
   example app, which shows what was built with the library rather than how to

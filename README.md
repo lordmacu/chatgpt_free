@@ -24,16 +24,15 @@ await for (final event in session.send('Tell me a very short story.')) {
   if (event is TextDelta) stdout.write(event.text);
 }
 
-// Search the web, and see the sources it used.
-await for (final event in session.send(
+// Search the web. `answer` is `ask` plus everything else the turn produced:
+// the sources, the model that replied, the quota left.
+final news = await session.answer(
   "What are today's top tech headlines?",
   options: const SendOptions(webSearch: true),
-)) {
-  if (event is CitationsReceived) {
-    for (final c in event.citations) {
-      print('${c.title} — ${c.url}');
-    }
-  }
+);
+print(news.text);
+for (final c in news.citations) {
+  print('${c.title} — ${c.url}');
 }
 
 // Ask for JSON and get it back decoded, not as a string to parse yourself.
@@ -108,6 +107,29 @@ anonymous endpoint — no account, no API key, no proxy in between.
 | --- |
 | ![A calculator built from the model's JSON, showing the result 15](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/develop.png) |
 | Asked for "a simple calculator", the model described one in JSON and this rendered it as real widgets. The 15 on the display is 7 + 8, computed by the arithmetic parser — nothing generated is executed. |
+
+## Platforms
+
+**pub.dev says six platforms. Take it as four.** That badge is computed from
+what the code imports, not from what the endpoint accepts, and this package
+imports nothing platform-specific — so the inference is that it runs
+everywhere, and for the web it is wrong.
+
+| | |
+| --- | --- |
+| Android, iOS | Works. The `example/` app is what the screenshots above are. |
+| macOS, Windows, Linux | Works — plain HTTPS, no platform code. The live tests run on macOS. |
+| **Web** | **Does not work**, and cannot be made to. |
+
+Flutter web means a browser, and a browser means CORS. The endpoint sends no
+`Access-Control-Allow-Origin` at all, so every request is blocked before it
+starts. Even with one, its `Access-Control-Allow-Headers` permits only
+`content-type`, while the Android protocol this package speaks needs
+fourteen headers — `OAI-Device-Id`, `X-Sentinel-Payload` and the rest — and
+`User-Agent` cannot be set from a browser at any price.
+
+Nothing in this package can fix that: it is the endpoint's policy. A web app
+needs a server of its own in between.
 
 ## Install
 

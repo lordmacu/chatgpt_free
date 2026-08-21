@@ -450,6 +450,23 @@ class ChatGptSession {
         attachments: attachments,
       )));
 
+  /// Sends [message] and returns everything the turn produced.
+  ///
+  /// [ask] gives you the words; this gives you the sources it searched, the
+  /// document it wrote and the model that actually answered, all awaited.
+  /// Reach for it the moment a turn is more than its text — asking anything
+  /// with `webSearch` and then wanting the citations is the usual case.
+  ///
+  /// Does NOT rotate the device id on the hourly cap. For that:
+  /// `collectAnswer(client.sendWithRotation(session, '…'))`.
+  Future<ChatAnswer> answer(
+    String message, {
+    SendOptions options = const SendOptions(),
+    List<TextAttachment> attachments = const [],
+  }) =>
+      collectAnswer(
+          send(message, options: options, attachments: attachments));
+
   /// Sends [message] and returns the whole reply, without a stream.
   ///
   /// The turn still streams on the wire — the backend has no other mode — but

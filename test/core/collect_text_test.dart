@@ -58,4 +58,74 @@ void main() {
 
     expect(session.ask('hola'), throwsA(isA<TransportException>()));
   });
+
+  test('answer gives the sources too, which ask cannot', () async {
+    // The gap this closes: ask() returns the words, but citations arrive as a
+    // separate event, so "the reply AND its sources" meant going back to a
+    // stream for want of one field.
+    final client =
+        ChatGptClient(transport: FakeTransport(fixtures: ['web_search']));
+    final session = client.newSession();
+
+    final answer = await session.answer('capital of Mongolia');
+
+    expect(answer.text, contains('Ulaanbaatar'));
+    expect(answer.citations, isNotEmpty);
+    expect(answer.citations.first.url, isNotEmpty);
+    expect(answer.searchQueries, isNotEmpty);
+    expect(answer.model, isNotEmpty);
+    client.close();
+  });
+
+  test('answer carries the title the backend generated', () async {
+    final client = ChatGptClient(transport: FakeTransport());
+    final answer = await client.newSession().answer('Di hola mundo');
+
+    expect(answer.title, 'Decir hola mundo');
+    client.close();
+  });
+
+  test('answer carries the canvas document when there is one', () async {
+    final client =
+        ChatGptClient(transport: FakeTransport(fixtures: ['canvas']));
+    final answer = await client.newSession().answer('escribe sobre el mar');
+
+    expect(answer.canvas, isNotNull);
+    expect(answer.canvas!.markdown, isNotEmpty);
+    client.close();
+  });
+
+  test('answer reports the quota snapshot attached to the turn', () async {
+    final client = ChatGptClient(transport: FakeTransport());
+    final answer = await client.newSession().answer('hola');
+
+    expect(answer.limits, isNotNull);
+    expect(answer.limits!.remaining, isNotEmpty);
+    expect(answer.limits!.resetAfter, isNotEmpty);
+    client.close();
+  });
+
+  test('collectAnswer folds text exactly as collectText does', () async {
+    final events = Stream<ChatEvent>.fromIterable(const [
+      TextDelta('primero'),
+      TextDelta('corregido', isReset: true),
+      TextDelta(' y sigue'),
+      TurnCompleted(actualModel: 'gpt-5-6', finishReason: 'stop'),
+    ]);
+
+    expect((await collectAnswer(events)).text, 'corregido y sigue');
+  });
+
+  test('collectAnswer records every rotation it took to get the answer',
+      () async {
+    final events = Stream<ChatEvent>.fromIterable(const [
+      QuotaRotated('hourly limit'),
+      TextDelta('por fin'),
+      TurnCompleted(actualModel: 'gpt-5-6', finishReason: 'stop'),
+    ]);
+
+    final answer = await collectAnswer(events);
+    expect(answer.rotations, ['hourly limit']);
+    expect(answer.text, 'por fin');
+  });
 }

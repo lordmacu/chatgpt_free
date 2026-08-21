@@ -27,16 +27,15 @@ Future<void> _theBlockAtTheTopOfTheReadme() async {
     if (event is TextDelta) stdout.write(event.text);
   }
 
-  // Search the web, and see the sources it used.
-  await for (final event in session.send(
+  // Search the web. `answer` is `ask` plus everything else the turn produced:
+  // the sources, the model that replied, the quota left.
+  final news = await session.answer(
     "What are today's top tech headlines?",
     options: const SendOptions(webSearch: true),
-  )) {
-    if (event is CitationsReceived) {
-      for (final c in event.citations) {
-        print('${c.title} — ${c.url}');
-      }
-    }
+  );
+  print(news.text);
+  for (final c in news.citations) {
+    print('${c.title} — ${c.url}');
   }
 
   // Ask for JSON and get it decoded.
