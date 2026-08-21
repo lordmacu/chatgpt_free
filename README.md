@@ -422,10 +422,37 @@ measurement. Worth it for dense requests, wasteful for "the weather in
 Bogotá".
 
 `ToolChoice.auto` lets the model decline; `ToolChoice.any` forbids
-declining; `ToolChoice.function('name')` pins one. Arguments are checked
-against the declared JSON Schema — nested objects, arrays and enums
-included — and a call that fails the check is sent back for repair before
-you ever see it.
+declining; `ToolChoice.function('name')` **pins** one — and pinning is a
+contract the parser keeps, not just a line in the prompt. A model that
+ignores it and calls a different declared function produces nothing rather
+than the wrong call.
+
+Reading the reply is deliberately generous, because a reply this package
+cannot read costs a whole extra message. The documented envelope is the
+fast path, and everything else a prompted model actually emits is read too:
+fenced or bare JSON, `<tool_call>` tags, Mistral's `[TOOL_CALLS]`, JSONL
+runs, Python-literal dicts, ReAct `action`/`action_input`, wrapper
+envelopes, and leaked `functions.` namespaces.
+
+Generous about shape, strict about identity. Every one of those is gated on
+the functions you declared, so a JSON object naming anything else stays
+text — turning a genuine answer into a call is worse than missing one,
+because your app then runs a function the user never asked for. The same
+care shows up in what it refuses: a mixed array is data rather than a
+batch, a schema quoted inside a clarifying question is not a call, a draft
+inside `<think>` is not the answer, and when a model demos the format
+before committing, the LAST candidate wins so you get the real call and not
+the example's arguments.
+
+Arguments are repaired against the declared schema losslessly or not at
+all: `"5"` becomes `5` for an integer, read by JSON's grammar rather than
+Dart's, so `"1_000"` stays the string it was. What does not convert cleanly
+travels exactly as the model sent it, and a parameter your schema never
+declared is never touched.
+
+This detection layer is ported from
+[llm-libre](https://github.com/lordmacu/llm-libre)'s `tool_emulator`, which
+solves the harder half of the same problem.
 
 ## Generated interfaces (`package:chatgpt_free/ui_schema.dart`)
 

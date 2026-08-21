@@ -2,6 +2,7 @@ import '../core/client.dart';
 import '../core/errors.dart';
 import '../core/events.dart';
 import '../core/models/options.dart';
+import 'detect.dart';
 import 'envelope.dart';
 import 'function_tool.dart';
 import 'prompt.dart';
@@ -165,8 +166,16 @@ class ToolExtractor {
     }
 
     final prompt = buildExtractorPrompt(functions, request, choice: choice);
+
+    // The choice narrows what the model is ALLOWED to have called, not just
+    // what it was asked to call: a pinned function authorises only itself, so
+    // a model that ignores the instruction and calls a different declared
+    // function now produces nothing, instead of a call that validated cleanly
+    // and ran the wrong thing.
+    final valid = allowedNames(functions, choice);
+
     var raw = await _ask(prompt);
-    final envelope = parseToolEnvelope(raw);
+    final envelope = parseToolEnvelope(raw, valid, functions: functions);
     var spent = 1;
     var notes = [...envelope.notes];
 
@@ -180,7 +189,7 @@ class ToolExtractor {
       );
     }
 
-    var calls = envelope is EnvelopeCalls ? toToolCalls(envelope.calls) : null;
+    var calls = envelope is EnvelopeCalls ? envelope.calls : null;
     var errors =
         calls == null ? const <String>[] : validateToolCalls(calls, functions);
 
@@ -189,7 +198,7 @@ class ToolExtractor {
     if (calls == null || errors.isNotEmpty) {
       spent++;
       final repaired = await _ask(buildRepairPrompt(prompt, raw, errors));
-      final second = parseToolEnvelope(repaired);
+      final second = parseToolEnvelope(repaired, valid, functions: functions);
 
       if (second is EnvelopeNeedInfo) {
         return ToolInfoNeeded(
@@ -201,8 +210,7 @@ class ToolExtractor {
         );
       }
 
-      final secondCalls =
-          second is EnvelopeCalls ? toToolCalls(second.calls) : null;
+      final secondCalls = second is EnvelopeCalls ? second.calls : null;
       final secondErrors = secondCalls == null
           ? const <String>[]
           : validateToolCalls(secondCalls, functions);
@@ -227,9 +235,9 @@ class ToolExtractor {
     if (calls.isNotEmpty && verify) {
       spent++;
       final audited = await _ask(buildVerifyPrompt(functions, request, calls));
-      final third = parseToolEnvelope(audited);
+      final third = parseToolEnvelope(audited, valid, functions: functions);
       if (third is EnvelopeCalls) {
-        final auditedCalls = toToolCalls(third.calls);
+        final auditedCalls = third.calls;
         // Only accept the audit when it is at least as valid as what it
         // replaces — an auditor that returns junk must not destroy a good
         // first pass.

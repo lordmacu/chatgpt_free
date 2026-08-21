@@ -13,9 +13,11 @@ export 'src/tools/envelope.dart'
         EnvelopeCalls,
         EnvelopeNeedInfo,
         EnvelopeUnreadable,
-        parseToolEnvelope,
-        toToolCalls;
+        parseToolEnvelope;
+export 'src/tools/detect.dart' show allowedNames, detectToolCalls;
 export 'src/tools/extractor.dart';
 export 'src/tools/function_tool.dart';
 export 'src/tools/prompt.dart';
 export 'src/tools/schema_check.dart';
+export 'src/tools/schema_coerce.dart' show applySchemas, coerceValue;
+export 'src/tools/tolerant_json.dart' show loadsTolerant;

@@ -103,8 +103,10 @@ void main() {
   test('the repair prompt carries what was wrong with the first answer',
       () async {
     final h = harness([
-      // Schema-invalid: city must be a string.
-      '<<<TOOL_CALL>>>{"calls":[{"name":"get_weather","arguments":{"city":7}}]}',
+      // Missing the required parameter entirely. A wrong TYPE no longer gets
+      // here: {"city": 7} is now re-read losslessly as "7" and validates on
+      // the first pass, which is the whole point of the repair pass shrinking.
+      '<<<TOOL_CALL>>>{"calls":[{"name":"get_weather","arguments":{}}]}',
       '<<<TOOL_CALL>>>{"calls":[{"name":"get_weather",'
           '"arguments":{"city":"Lima"}}]}',
     ]);
@@ -114,7 +116,7 @@ void main() {
     final second = ((((h.transport.sentBodies[1]['messages'] as List).single
             as Map)['content'] as Map)['parts'] as List)
         .single;
-    expect('$second', contains('city: expected string'));
+    expect('$second', contains('city: missing required'));
     expect('$second', contains('rejected'));
   });
 

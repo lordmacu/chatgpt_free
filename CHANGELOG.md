@@ -14,6 +14,9 @@
   through a stateless extraction request. Returns OpenAI-shaped calls,
   reports a missing required parameter instead of inventing one, and
   validates arguments against the declared JSON Schema.
+- Tool-call detection reads every dialect a prompted model emits, gated on the
+  declared functions; `ToolChoice.function(...)` is enforced by the parser, not
+  only prompted; arguments are repaired against their schema losslessly.
 - `ChatGptClient.newEphemeralSession()`, for work that must not persist a
   throwaway device id over the app's real one.
 - Proof of concept: `package:chatgpt_free/ui_schema.dart`, a JSON vocabulary

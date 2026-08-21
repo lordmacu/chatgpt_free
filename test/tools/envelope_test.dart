@@ -1,13 +1,19 @@
 import 'package:chatgpt_free/tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+/// The functions these replies are read against. Detection is gated on this:
+/// it is what separates "the model invoked a tool" from "the model wrote about
+/// JSON".
+const Set<String> kNames = {'get_weather', 'f', 'first', 'second', 'ok', 'now'};
+
 void main() {
   test('reads a clean envelope', () {
-    final envelope =
-        parseToolEnvelope('$kToolCallMarker{"calls":[{"name":"get_weather",'
-            '"arguments":{"city":"Lima"}}]}');
+    final envelope = parseToolEnvelope(
+        '$kToolCallMarker{"calls":[{"name":"get_weather",'
+        '"arguments":{"city":"Lima"}}]}',
+        kNames);
 
-    final calls = toToolCalls((envelope as EnvelopeCalls).calls);
+    final calls = (envelope as EnvelopeCalls).calls;
     expect(calls, hasLength(1));
     expect(calls.single.name, 'get_weather');
     expect(calls.single.arguments, {'city': 'Lima'});
@@ -15,19 +21,20 @@ void main() {
   });
 
   test('two cities means two calls', () {
-    final envelope = parseToolEnvelope('$kToolCallMarker{"calls":['
+    final envelope = parseToolEnvelope(
+        '$kToolCallMarker{"calls":['
         '{"name":"get_weather","arguments":{"city":"Lima"}},'
-        '{"name":"get_weather","arguments":{"city":"Quito"}}]}');
+        '{"name":"get_weather","arguments":{"city":"Quito"}}]}',
+        kNames);
 
-    expect(
-        toToolCalls((envelope as EnvelopeCalls).calls)
-            .map((c) => c.arguments['city']),
+    expect((envelope as EnvelopeCalls).calls.map((c) => c.arguments['city']),
         ['Lima', 'Quito']);
   });
 
   test('a fenced envelope is read, and noted rather than rejected', () {
     final envelope = parseToolEnvelope(
-        '```json\n$kToolCallMarker{"calls":[{"name":"f","arguments":{}}]}\n```');
+        '```json\n$kToolCallMarker{"calls":[{"name":"f","arguments":{}}]}\n```',
+        kNames);
 
     expect(envelope, isA<EnvelopeCalls>());
     expect(envelope.notes, contains('fenced'));
@@ -35,7 +42,8 @@ void main() {
 
   test('prose before the marker is tolerated and noted', () {
     final envelope = parseToolEnvelope(
-        'Sure, here you go:\n$kToolCallMarker{"calls":[{"name":"f","arguments":{}}]}');
+        'Sure, here you go:\n$kToolCallMarker{"calls":[{"name":"f","arguments":{}}]}',
+        kNames);
 
     expect((envelope as EnvelopeCalls).calls, hasLength(1));
     expect(envelope.notes, contains('prose-before'));
@@ -44,22 +52,24 @@ void main() {
   test('a repeated marker reads the first envelope only', () {
     final envelope = parseToolEnvelope(
         '$kToolCallMarker{"calls":[{"name":"first","arguments":{}}]}'
-        '$kToolCallMarker{"calls":[{"name":"second","arguments":{}}]}');
+        '$kToolCallMarker{"calls":[{"name":"second","arguments":{}}]}',
+        kNames);
 
-    final calls = toToolCalls((envelope as EnvelopeCalls).calls);
+    final calls = (envelope as EnvelopeCalls).calls;
     expect(calls.single.name, 'first');
     expect(envelope.notes, contains('duplicate-marker'));
   });
 
   test('no-tool is a decision, not a failure', () {
-    final envelope = parseToolEnvelope(kNoToolMarker);
+    final envelope = parseToolEnvelope(kNoToolMarker, kNames);
 
     expect((envelope as EnvelopeCalls).calls, isEmpty);
   });
 
   test('need-info carries which parameters were missing', () {
     final envelope = parseToolEnvelope(
-        '$kNeedInfoMarker{"function":"book_flight","missing":["origin","date"]}');
+        '$kNeedInfoMarker{"function":"book_flight","missing":["origin","date"]}',
+        kNames);
 
     expect(envelope, isA<EnvelopeNeedInfo>());
     expect((envelope as EnvelopeNeedInfo).function, 'book_flight');
@@ -70,7 +80,8 @@ void main() {
     // The whole reason for a marker rather than "reply in JSON": a reply that
     // happens to contain JSON is still prose.
     final envelope = parseToolEnvelope(
-        'The config looks like {"calls":[{"name":"x"}]} in most setups.');
+        'The config looks like {"calls":[{"name":"x"}]} in most setups.',
+        kNames);
 
     expect(envelope, isA<EnvelopeUnreadable>());
     expect(envelope.notes, contains('no-marker'));
@@ -79,27 +90,31 @@ void main() {
   test('a marker with broken JSON after it is unreadable, not empty', () {
     // Reporting "no calls" here would be a silent wrong answer; the caller
     // needs to know the reply has to be repaired.
-    final envelope = parseToolEnvelope('$kToolCallMarker{"calls":[{{{');
+    final envelope = parseToolEnvelope('$kToolCallMarker{"calls":[{{{', kNames);
 
     expect(envelope, isA<EnvelopeUnreadable>());
     expect(envelope.notes, contains('invalid-json'));
   });
 
-  test('a nameless call is dropped rather than turned into a call to ""', () {
+  test('a partly-valid batch is refused whole, not silently pruned', () {
+    // This used to keep the good entry and drop the nameless one. All-or-
+    // nothing is the safer rule: a list where only some entries qualify is
+    // far more likely to be data than a batch of calls, and a batch the model
+    // did make deserves a repair round trip rather than being quietly
+    // shortened behind the caller's back.
     final envelope = parseToolEnvelope(
         '$kToolCallMarker{"calls":[{"arguments":{"city":"Lima"}},'
-        '{"name":"ok","arguments":{}}]}');
+        '{"name":"ok","arguments":{}}]}',
+        kNames);
 
-    expect(toToolCalls((envelope as EnvelopeCalls).calls).map((c) => c.name),
-        ['ok']);
+    expect(envelope, isA<EnvelopeUnreadable>());
   });
 
   test('a call with no arguments at all becomes an empty argument map', () {
     final envelope =
-        parseToolEnvelope('$kToolCallMarker{"calls":[{"name":"now"}]}');
+        parseToolEnvelope('$kToolCallMarker{"calls":[{"name":"now"}]}', kNames);
 
-    expect(toToolCalls((envelope as EnvelopeCalls).calls).single.arguments,
-        isEmpty);
+    expect((envelope as EnvelopeCalls).calls.single.arguments, isEmpty);
   });
 
   test('OpenAI shape: arguments is a JSON string, not an object', () {
