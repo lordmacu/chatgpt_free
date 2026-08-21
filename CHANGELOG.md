@@ -1,9 +1,14 @@
+## 0.1.3
+
+- Documentation only. The README now opens with code: everything the client
+  does, in one block — ask, stream, web search with sources, JSON,
+  attachments, translation, quota. It used to open with screenshots of the
+  example app, which shows what was built with the library rather than how to
+  use it. The block is compiled by `flutter analyze`, so the most-read snippet
+  in the package cannot quietly stop working.
+
 ## 0.1.2
 
-- The README now opens with code: everything the client does, in one block —
-  ask, stream, web search with sources, JSON, attachments, translation,
-  quota. It used to open with screenshots of the example app, which shows
-  what was built with the library rather than how to use it.
 - **Fixed two languages in the example that never worked.** The translate
   endpoint rejects bare `pt` and `zh`; they need a region (`pt-BR`, `zh-CN`).
   Anyone picking Português or 中文 in the demo got HTTP 400, in 0.1.0 and
