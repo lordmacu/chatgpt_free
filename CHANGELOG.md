@@ -1,4 +1,4 @@
-## 0.1.3
+## 0.1.4
 
 - `session.answer()` and `collectAnswer()`: everything a turn produced, in one
   `await` — the text, the citations, the search queries, the Canvas document,
@@ -13,7 +13,10 @@
   nothing platform-specific. Web does not work and cannot: the endpoint sends
   no `Access-Control-Allow-Origin`, and its `Access-Control-Allow-Headers`
   permits only `content-type` where the protocol needs fourteen headers.
-- The README now opens with code: everything the client
+
+## 0.1.3
+
+- Documentation only. The README now opens with code: everything the client
   does, in one block — ask, stream, web search with sources, JSON,
   attachments, translation, quota. It used to open with screenshots of the
   example app, which shows what was built with the library rather than how to
