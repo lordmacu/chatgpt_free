@@ -5,10 +5,19 @@ import 'package:chatgpt_free/src/core/transport.dart';
 
 /// A transport that replays recorded fixtures and records what it was asked.
 class FakeTransport implements Transport {
-  FakeTransport({List<String>? fixtures, this.getResponse = '{}'})
-      : _fixtures = fixtures ?? ['plain_text'];
+  FakeTransport({
+    List<String>? fixtures,
+    this.replies,
+    this.getResponse = '{}',
+  }) : _fixtures = fixtures ?? ['plain_text'];
 
   final List<String> _fixtures;
+
+  /// Assistant replies to synthesize, one per call, instead of replaying a
+  /// fixture. For turns whose exact text is the thing under test — a tool-call
+  /// envelope, say — where a recorded fixture would only be this same
+  /// synthetic stream, saved to a file.
+  final List<String>? replies;
   int _call = 0;
 
   /// Body returned by [get] and [post].
@@ -57,6 +66,11 @@ class FakeTransport implements Transport {
     final failure = failures[index];
     if (failure != null) throw failure;
 
+    final canned = replies;
+    if (canned != null) {
+      return _synthesize(canned[index.clamp(0, canned.length - 1)]);
+    }
+
     final name = _fixtures[index.clamp(0, _fixtures.length - 1)];
     final marker = midStreamCutAfter[index];
     if (marker == null) return File('test/fixtures/$name.sse').openRead();
@@ -69,6 +83,49 @@ class FakeTransport implements Transport {
     }
     final bytes = await File('test/fixtures/$name.sse').readAsBytes();
     return _truncatedThenFailing(bytes, marker, midFailure);
+  }
+
+  /// An SSE stream carrying [reply] as the assistant's whole answer, in the
+  /// same delta shape the real backend uses.
+  Stream<List<int>> _synthesize(String reply) {
+    const conversation = '11111111-2222-3333-4444-555555555555';
+    final frames = [
+      'event: delta_encoding',
+      'data: "v1"',
+      '',
+      'data: ${jsonEncode({
+            'p': '',
+            'o': 'add',
+            'v': {
+              'message': {
+                'id': '66666666-7777-8888-9999-000000000000',
+                'author': {'role': 'assistant'},
+                'content': {
+                  'content_type': 'text',
+                  'parts': [''],
+                },
+                'status': 'in_progress',
+                'metadata': {'model_slug': 'gpt-5-6'},
+              },
+              'conversation_id': conversation,
+            },
+          })}',
+      '',
+      'data: ${jsonEncode({
+            'p': '/message/content/parts/0',
+            'o': 'append',
+            'v': reply,
+          })}',
+      '',
+      'data: ${jsonEncode({
+            'type': 'message_stream_complete',
+            'conversation_id': conversation,
+          })}',
+      '',
+      'data: [DONE]',
+      '',
+    ];
+    return Stream.value(utf8.encode(frames.join('\n')));
   }
 
   /// Yields [bytes] up through the end of the line containing [marker], then

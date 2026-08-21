@@ -322,6 +322,66 @@ Without a store — or without calling `restoreSession()` — state lives only
 as long as the process does: every fresh launch starts a brand-new
 anonymous device.
 
+## Function calling (`package:chatgpt_free/tools.dart`)
+
+The backend has no function calling. This produces it anyway — the way JSON
+mode is produced, by prompt — but through a dedicated, stateless request
+rather than the conversation itself.
+
+That separation is the design, not an implementation detail. Measured
+anonymously: with the manifest in a live conversation's system prompt,
+"weather in Lima and Quito" produced a usable envelope **0 times out of 5**
+— the model answered from its own web search instead, and turning search
+off did not reliably stop it. With the manifest in the user turn of a
+throwaway session, the same request went **4 for 4**, and 25 of 28 over a
+wider battery, with no false positives on 8 prompts that needed no function
+at all.
+
+So an extraction is not part of a conversation and cannot see one. Feed it
+the request, run the calls yourself, and send the results into your chat
+session as ordinary text.
+
+```dart
+import 'package:chatgpt_free/tools.dart';
+
+final result = await ToolExtractor(client: client).extract(
+  'What is the weather in Lima and in Quito?',
+  functions: [
+    FunctionTool.fromJson(mySchema), // OpenAI's tools shape, unchanged
+  ],
+);
+
+switch (result) {
+  case ToolCallsExtracted(:final calls):
+    for (final call in calls) await run(call.name, call.arguments);
+  case ToolInfoNeeded(:final missing):
+    ask('I still need: ${missing.join(', ')}');
+  case NoToolCall():
+    await session.send(request);
+}
+```
+
+`ToolInfoNeeded` is why this is worth more than a prompt you write yourself:
+asked to send an email with no subject and no body, the model invents both,
+and the invention validates cleanly against the schema. A wrong call that
+looks exactly like a right one is the worst outcome available, so a missing
+**required** parameter is reported instead of guessed.
+
+One upstream message per extraction — the same anonymous allowance ordinary
+chat spends. A second is spent only when the first reply was unusable
+(measured at about 1 in 30), or when you pass `verify: true`. Verification
+exists for the one real failure mode: a request packing about six conditions
+loses one, and the result still validates, so no amount of schema checking
+finds it. Re-reading the original request recovered the dropped filter in
+measurement. Worth it for dense requests, wasteful for "the weather in
+Bogotá".
+
+`ToolChoice.auto` lets the model decline; `ToolChoice.any` forbids
+declining; `ToolChoice.function('name')` pins one. Arguments are checked
+against the declared JSON Schema — nested objects, arrays and enums
+included — and a call that fails the check is sent back for repair before
+you ever see it.
+
 ## Generated interfaces (`package:chatgpt_free/ui_schema.dart`)
 
 A proof of concept, kept in its own library so it never reaches an app that

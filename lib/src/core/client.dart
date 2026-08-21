@@ -50,6 +50,20 @@ class ChatGptClient {
         systemPrompt: systemPrompt,
       );
 
+  /// Starts a session that never touches this client's store.
+  ///
+  /// For work that is not the user's conversation — a one-shot extraction, a
+  /// probe — where persisting a throwaway device id would overwrite the real
+  /// one the app resumes from. Shares the client's transport, and its quota:
+  /// an ephemeral session is a different device, so it starts with an
+  /// untouched hourly allowance of its own.
+  ChatGptSession newEphemeralSession({String systemPrompt = ''}) =>
+      ChatGptSession(
+        transport: _transport,
+        store: InMemoryStore(),
+        systemPrompt: systemPrompt,
+      );
+
   /// Starts a session, resuming the device id and conversation id last
   /// saved to this client's [store], when present. See
   /// [ChatGptSession.restore].

@@ -1,3 +1,4 @@
 tags:
   live:
-    skip: "Hits the real backend. Run with: flutter test --tags live"
+    skip: "Hits the real backend and spends anonymous quota. Run with:
+      flutter test --tags live --run-skipped"
