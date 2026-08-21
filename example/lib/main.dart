@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'build_screen.dart';
 import 'chat_screen.dart';
+import 'tools_screen.dart';
 import 'translate_screen.dart';
 
 void main() => runApp(const ExampleApp());
@@ -33,7 +34,7 @@ class ExampleApp extends StatelessWidget {
       );
 }
 
-/// Two tabs over one client.
+/// Four tabs over one client.
 ///
 /// Translation lives on its own tab rather than as a chat action because it
 /// hits a different endpoint and spends no message from the anonymous quota —
@@ -69,6 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
             TranslateScreen(client: _client),
             ChatScreen(client: _client),
             BuildScreen(client: _client),
+            ToolsScreen(client: _client),
           ],
         ),
         bottomNavigationBar: NavigationBar(
@@ -89,6 +91,11 @@ class _HomeScreenState extends State<HomeScreen> {
               icon: Icon(Icons.auto_awesome_outlined),
               selectedIcon: Icon(Icons.auto_awesome),
               label: 'Develop',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.functions_outlined),
+              selectedIcon: Icon(Icons.functions),
+              label: 'Tools',
             ),
           ],
         ),
