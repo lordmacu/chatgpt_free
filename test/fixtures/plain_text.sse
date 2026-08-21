@@ -1,7 +1,7 @@
 event: delta_encoding
 data: "v1"
 
-data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiI0ZGY1MDkwMTI0NWM0NzQwOGYwMjkxNDYzYTM5OGI2YSIsImNvbmR1aXRfbG9jYXRpb24iOiIxMC4xMjguMTY1LjE5NTo4MzA2IiwiY2x1c3RlciI6InVuaWZpZWQtNDEiLCJpYXQiOjE3ODcyNDIzNDcsImV4cCI6MTc4NzI1Njc0NywidHVybl90b3BpY19pZCI6ImNvbnZlcnNhdGlvbi10dXJuLTVmNGE3YTcyLWYwZGEtNGEyMy05OTZlLTE5OTBlZGFjYWUwMiJ9.XSYL4qCYqB0-wXxV43YAa4GYFVaXUIahvJEAfvM5DUADl2dyL4j3BrT7BMKV1T1Yk_JUu0dJuOOBBAWxwJ6I-A","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
+data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsImNvbmR1aXRfbG9jYXRpb24iOiJyZWRhY3RlZCIsImNsdXN0ZXIiOiJyZWRhY3RlZCIsImlhdCI6MCwiZXhwIjowLCJ0dXJuX3RvcGljX2lkIjoiY29udmVyc2F0aW9uLXR1cm4tMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIn0.redacted-signature","conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8"}
 
 event: delta
 data: {"p":"","o":"add","v":{"message":{"id":"e384738a-24d5-4ea6-be10-63710f139959","author":{"role":"user","name":null,"metadata":{}},"create_time":1787242346.597435,"update_time":null,"content":{"content_type":"text","parts":["Di exactamente: hola mundo"]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"request_id":"790018f1-73d3-4b07-a399-3c028ab76d21","message_source":null,"turn_exchange_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","working_turn_id":"5f4a7a72-f0da-4a23-996e-1990edacae02","resolved_model_slug":"gpt-5-6","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a872769-b8e0-83ea-9bcb-c551963b63a8","error":null,"error_code":null},"c":0} 

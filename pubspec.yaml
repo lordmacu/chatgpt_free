@@ -2,6 +2,16 @@ name: chatgpt_free
 description: Talk to ChatGPT from Flutter with no API key and no account, using the anonymous Android endpoint.
 version: 0.1.0
 repository: https://github.com/lordmacu/chatgpt_free
+issue_tracker: https://github.com/lordmacu/chatgpt_free/issues
+
+# pub.dev's own vocabulary — these are how the package is found by browsing
+# rather than by name. Lowercase, hyphenated, max five.
+topics:
+  - chatgpt
+  - ai
+  - chat
+  - llm
+  - tool-calling
 
 environment:
   sdk: ^3.0.0

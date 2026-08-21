@@ -1,7 +1,7 @@
 event: delta_encoding
 data: "v1"
 
-data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiI1ZmRjMTZlODM4ZTU0NzA5YjQ4MmU2MjNmMjI4NDMxNyIsImNvbmR1aXRfbG9jYXRpb24iOiIxMC4xMjguMTM2LjIzOjgzMDciLCJjbHVzdGVyIjoidW5pZmllZC00MSIsImlhdCI6MTc4NzI0MjM1MSwiZXhwIjoxNzg3MjU2NzUxLCJ0dXJuX3RvcGljX2lkIjoiY29udmVyc2F0aW9uLXR1cm4tMDZiZTdiYjctNDkyMS00MzM1LTg3NmEtYzQ5NmEzZjAyNzI5In0.XltzIm7qMS_x-LemFVIlfGc2mSLucQ6EYSstqIlj-yUwm4z_U8lluWAKMhULiVgtdXXH1GThhFCFYVfX9Cwnvw","conversation_id":"6a87276e-8c94-83ea-9f96-7d0f5a477640"}
+data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsImNvbmR1aXRfbG9jYXRpb24iOiJyZWRhY3RlZCIsImNsdXN0ZXIiOiJyZWRhY3RlZCIsImlhdCI6MCwiZXhwIjowLCJ0dXJuX3RvcGljX2lkIjoiY29udmVyc2F0aW9uLXR1cm4tMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIn0.redacted-signature","conversation_id":"6a87276e-8c94-83ea-9f96-7d0f5a477640"}
 
 event: delta
 data: {"p":"","o":"add","v":{"message":{"id":"1980b6c1-9c09-4f83-a359-0ae3b4881eef","author":{"role":"user","name":null,"metadata":{}},"create_time":1787242351.028403,"update_time":null,"content":{"content_type":"text","parts":["Busca en la web: capital de Mongolia. Cita fuentes."]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"request_id":"1bc9ee82-0738-4018-b048-a630bb1fb008","message_source":null,"turn_exchange_id":"06be7bb7-4921-4335-876a-c496a3f02729","working_turn_id":"06be7bb7-4921-4335-876a-c496a3f02729","resolved_model_slug":"gpt-5-6","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87276e-8c94-83ea-9f96-7d0f5a477640","error":null,"error_code":null},"c":0}

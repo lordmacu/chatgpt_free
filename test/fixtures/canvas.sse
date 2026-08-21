@@ -1,7 +1,7 @@
 event: delta_encoding
 data: "v1"
 
-data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiI2NjIxNTQ0NGRkMzg0ZjBiODI5ZjljZjNlN2VkZTA0YyIsImNvbmR1aXRfbG9jYXRpb24iOiIxMC4xMjkuMjA4LjE0Nzo4MzA2IiwiY2x1c3RlciI6InVuaWZpZWQtNDEiLCJpYXQiOjE3ODcyNDIzNjgsImV4cCI6MTc4NzI1Njc2OCwidHVybl90b3BpY19pZCI6ImNvbnZlcnNhdGlvbi10dXJuLTJlYzE0YWIzLWVmOGUtNGFkNC1iODViLWMwNTUxZTJiZTZmNCJ9.24jf5xvkEzQ4_jWAAsWYWtuXqp41OUnXjMHFL4scg2rYS9T3sWlP9FdEGXm3NYTp3sIDJ-ZOcfgF4K5XZRVmwQ","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
+data: {"type":"resume_conversation_token","kind":"topic","token":"eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb25kdWl0X3V1aWQiOiIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMCIsImNvbmR1aXRfbG9jYXRpb24iOiJyZWRhY3RlZCIsImNsdXN0ZXIiOiJyZWRhY3RlZCIsImlhdCI6MCwiZXhwIjowLCJ0dXJuX3RvcGljX2lkIjoiY29udmVyc2F0aW9uLXR1cm4tMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwIn0.redacted-signature","conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570"}
 
 event: delta
 data: {"p":"","o":"add","v":{"message":{"id":"02868e39-3299-4a4c-9fc8-5bfd024ffa9f","author":{"role":"user","name":null,"metadata":{}},"create_time":1787242367.203755,"update_time":null,"content":{"content_type":"text","parts":["Escribe un documento corto sobre el mar."]},"status":"finished_successfully","end_turn":null,"weight":1.0,"metadata":{"request_id":"c040b484-e240-4be7-a36e-8b6422db393b","message_source":null,"turn_exchange_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","working_turn_id":"2ec14ab3-ef8e-4ad4-b85b-c0551e2be6f4","resolved_model_slug":"gpt-5-6","model_switcher_deny":[]},"recipient":"all","channel":null},"conversation_id":"6a87277e-5118-83ea-baa5-ee9ca679d570","error":null,"error_code":null},"c":0}   
