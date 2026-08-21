@@ -8,6 +8,62 @@ ChatGPT in Flutter with no API key and no account.
 > without notice. Use it for prototypes and personal projects, not for
 > anything you need to keep working.
 
+```dart
+import 'dart:io';
+
+import 'package:chatgpt_free/chatgpt_free.dart';
+
+final client = ChatGptClient();
+final session = client.newSession();
+
+// Ask, and get the whole answer back.
+print(await session.ask('Explain recursion in one sentence.'));
+
+// Or watch it being written.
+await for (final event in session.send('Tell me a very short story.')) {
+  if (event is TextDelta) stdout.write(event.text);
+}
+
+// Search the web, and see the sources it used.
+await for (final event in session.send(
+  "What are today's top tech headlines?",
+  options: const SendOptions(webSearch: true),
+)) {
+  if (event is CitationsReceived) {
+    for (final c in event.citations) {
+      print('${c.title} — ${c.url}');
+    }
+  }
+}
+
+// Ask for JSON and get it back decoded, not as a string to parse yourself.
+print(await session.sendJson('Three planets with their diameter.'));
+
+// Send a file along: its text is inlined into the prompt.
+await session.ask('Summarise this.', attachments: [
+  TextAttachment(
+      name: 'report.txt', content: File('report.txt').readAsStringSync()),
+]);
+
+// Translate — a different endpoint, so it spends no chat message and keeps
+// working after the hourly cap has stopped the chat.
+print(await client.translate('The quick brown fox', target: 'es'));
+
+// What is left of the anonymous quota, and when it comes back.
+final limits = await session.limits();
+print(
+    '${limits.remaining['file_upload']} uploads, back ${limits.resetAfter['file_upload']}');
+
+client.close();
+```
+
+Function calling and model-described interfaces live in their own libraries,
+so they cost nothing if you do not import them — see
+[`tools.dart`](#function-calling-packagechatgpt_freetoolsdart) and
+[`ui_schema.dart`](#generated-interfaces-packagechatgpt_freeui_schemadart).
+There is a Flutter layer too, but the client above is the whole protocol and
+needs none of it.
+
 ## What it looks like
 
 Every screenshot below is the app in `example/`, running against the real
@@ -70,19 +126,6 @@ Four import points, and you take only what you need:
 | `package:chatgpt_free/widgets.dart` | The Flutter layer: `ChatController`, `ChatView` and the pieces it is built from. Re-exports the core, so importing both is never necessary. |
 | `package:chatgpt_free/tools.dart` | Function calling, emulated. Optional. |
 | `package:chatgpt_free/ui_schema.dart` | Interfaces the model describes in JSON. A proof of concept, optional. |
-
-The smallest thing that works — no Flutter, no widgets, no keys:
-
-```dart
-import 'package:chatgpt_free/chatgpt_free.dart';
-
-final client = ChatGptClient();
-final session = client.newSession();
-
-print(await session.ask('Explain recursion in one sentence.'));
-
-client.close();
-```
 
 ### Streaming or not, your choice
 
