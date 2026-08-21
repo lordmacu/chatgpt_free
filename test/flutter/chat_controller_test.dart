@@ -442,4 +442,17 @@ void main() {
     expect(controller.messages.length, before,
         reason: 'an empty fetch must not destroy the transcript');
   });
+
+  test('picks up the title the backend puts on the reply stream', () async {
+    final transport = FakeTransport();
+    final controller =
+        ChatController(client: ChatGptClient(transport: transport));
+
+    expect(controller.title, isNull);
+    await controller.send('Di hola mundo');
+
+    // plain_text.sse carries the real title_generation frame. A conversation
+    // list can label this the moment the answer lands, with no extra request.
+    expect(controller.title, 'Decir hola mundo');
+  });
 }

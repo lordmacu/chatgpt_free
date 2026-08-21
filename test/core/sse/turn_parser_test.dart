@@ -300,4 +300,49 @@ void main() {
 
     expect(reconstruct(deltas), 'Hello there, everyone!');
   });
+
+  test('reports the title the backend generates for the conversation',
+      () async {
+    final parser = TurnParser(requestedModel: 'auto');
+    final events = await parser.parse(framesOf('plain_text')).toList();
+
+    expect(events.whereType<ConversationTitled>().single.title,
+        'Decir hola mundo');
+    expect(parser.title, 'Decir hola mundo');
+  });
+
+  test('the backend refines the title mid-turn; the last one wins', () async {
+    // canvas.sse carries two title_generation frames, captured from real
+    // traffic: a first guess and the title the backend settled on.
+    final parser = TurnParser(requestedModel: 'auto');
+    final events = await parser.parse(framesOf('canvas')).toList();
+
+    final titles = events.whereType<ConversationTitled>().map((e) => e.title);
+    expect(titles, ['Escribir documento sobre mar', 'Escribir sobre el mar']);
+    expect(parser.title, 'Escribir sobre el mar');
+  });
+
+  test('a turn with no title frame leaves the title unset', () async {
+    final parser = TurnParser(requestedModel: 'auto');
+    final events = await parser
+        .parse(Stream.value(const SseFrame(null, '{"v":"hola","p":""}')))
+        .toList();
+
+    expect(events.whereType<ConversationTitled>(), isEmpty);
+    expect(parser.title, isNull);
+  });
+
+  test('the inline quota snapshot carries when each feature resets', () async {
+    final parser = TurnParser(requestedModel: 'auto');
+    await parser.parse(framesOf('plain_text')).drain<void>();
+
+    // "0 left" is not actionable on its own — a UI has to be able to say when
+    // it comes back.
+    expect(parser.limits!.resetAfter['file_upload'],
+        DateTime.parse('2026-08-21T16:12:28.014904Z'));
+    expect(
+        parser.limits!.resetAfter['dictation']!
+            .isAfter(DateTime.utc(2026, 8, 26)),
+        isTrue);
+  });
 }

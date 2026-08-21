@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../events.dart';
+import '../api.dart';
 import '../models/models.dart';
 import 'delta.dart';
 import 'pua.dart';
@@ -31,6 +32,9 @@ class TurnParser {
 
   /// The model that actually answered.
   String actualModel = '';
+
+  /// Title the backend generated for the conversation, when it sent one.
+  String? title;
 
   /// Citations collected during the turn.
   List<Citation> citations = const [];
@@ -89,6 +93,12 @@ class TurnParser {
       case 'resume_conversation_token':
         final id = event['conversation_id'];
         if (id is String) conversationId = id;
+      case 'title_generation':
+        final generated = event['title'];
+        if (generated is String && generated.isNotEmpty) {
+          title = generated;
+          yield ConversationTitled(generated);
+        }
       case 'conversation_detail_metadata':
         limits = _parseLimits(event);
       // Deliberately no case here for 'url_moderation': real frames (see
@@ -106,12 +116,15 @@ class TurnParser {
 
   Limits _parseLimits(Map<String, dynamic> event) {
     final remaining = <String, int>{};
+    final resetAfter = <String, DateTime>{};
     for (final entry in (event['limits_progress'] as List? ?? const [])) {
-      if (entry is Map &&
-          entry['feature_name'] is String &&
-          entry['remaining'] is int) {
-        remaining[entry['feature_name'] as String] = entry['remaining'] as int;
+      if (entry is! Map || entry['feature_name'] is! String) continue;
+      final feature = entry['feature_name'] as String;
+      if (entry['remaining'] is int) {
+        remaining[feature] = entry['remaining'] as int;
       }
+      final reset = parseResetAfter(entry['reset_after']);
+      if (reset != null) resetAfter[feature] = reset;
     }
     final capped = <String>[
       for (final m in (event['model_limits'] as List? ?? const []))
@@ -123,6 +136,7 @@ class TurnParser {
     ];
     return Limits(
       remaining: remaining,
+      resetAfter: resetAfter,
       cappedModels: capped,
       blockedFeatures: blocked,
     );

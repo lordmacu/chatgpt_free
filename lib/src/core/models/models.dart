@@ -45,12 +45,21 @@ class Limits {
   /// Creates a limits snapshot.
   const Limits({
     this.remaining = const {},
+    this.resetAfter = const {},
     this.cappedModels = const [],
     this.blockedFeatures = const [],
   });
 
   /// Remaining count per feature name, e.g. `file_upload`.
   final Map<String, int> remaining;
+
+  /// When each feature's allowance comes back, in UTC.
+  ///
+  /// Keyed the same way as [remaining], but not necessarily the same set: a
+  /// feature the backend reports without a usable timestamp appears in one and
+  /// not the other. "0 left" on its own is not something a UI can act on —
+  /// this is what lets it say when to come back.
+  final Map<String, DateTime> resetAfter;
 
   /// Models currently capped — answers fall back to a smaller model.
   final List<String> cappedModels;

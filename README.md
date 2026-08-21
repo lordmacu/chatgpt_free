@@ -211,6 +211,32 @@ Anonymous sessions also carry: `file_upload` capped at 3 per 24 hours,
 34,834-token context window. Call `client.limits()` to read the current
 state of all of these without spending a message.
 
+`Limits.remaining` says how much is left; `Limits.resetAfter` says when it
+comes back, keyed the same way and in UTC. Zero remaining is not something
+an app can act on by itself:
+
+```dart
+final limits = await session.limits();
+final left = limits.remaining['file_upload'];        // 0
+final back = limits.resetAfter['file_upload'];       // 2026-08-22T00:05:08Z
+```
+
+## Titles
+
+The backend names each conversation itself and sends the name down the reply
+stream, a beat after the last text delta — as a `ConversationTitled` event,
+and on `session.title` / `ChatController.title` once it lands. A list of
+conversations can label itself the moment the first answer arrives, with no
+extra request:
+
+```dart
+await controller.send('¿Cuál es la capital de Mongolia?');
+print(controller.title); // Buscar capital de Mongolia
+```
+
+The backend sometimes refines its first guess and sends a second title for
+the same turn; the last one is the one it kept.
+
 ## What works anonymously
 
 | Capability | Anonymous support |

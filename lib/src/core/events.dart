@@ -110,6 +110,20 @@ final class QuotaRotated extends ChatEvent {
   final String reason;
 }
 
+/// The backend named the conversation.
+///
+/// It arrives on the same stream as the reply, a beat after the last text
+/// delta — so a UI can title a conversation the moment it is created, without
+/// fetching it back. The backend sometimes refines its first guess and sends a
+/// second one; the last one for a turn is the title it kept.
+final class ConversationTitled extends ChatEvent {
+  /// Creates a title event.
+  const ConversationTitled(this.title);
+
+  /// The generated title.
+  final String title;
+}
+
 /// The assistant finished writing, but the stream is still open.
 ///
 /// The backend keeps sending after the last text delta — it generates the

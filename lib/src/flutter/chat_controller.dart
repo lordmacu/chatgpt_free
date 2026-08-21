@@ -147,6 +147,13 @@ class ChatController extends ChangeNotifier {
   /// after the answer arrived.
   bool get isWritingReply => _isWritingReply;
 
+  /// The title the backend generated for this conversation, if any.
+  ///
+  /// It rides the reply stream, so a conversation list can be labelled as soon
+  /// as the first answer lands — no extra request, and no waiting for the turn
+  /// to close.
+  String? get title => _session.title;
+
   /// The last error, if any.
   ChatGptException? get error => _error;
 
@@ -243,6 +250,9 @@ class ChatController extends ChangeNotifier {
         }
         if (event is TurnCompleted) {
           log('turn closed (model: ${event.actualModel})');
+        }
+        if (event is ConversationTitled) {
+          log('titled "${event.title}"');
         }
         if (event is ModelDowngraded) {
           _downgradeNotice =

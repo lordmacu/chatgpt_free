@@ -58,6 +58,17 @@ List<dynamic> _listField(
       'expected "$field" to be a list, got ${value.runtimeType}: ${_excerpt(body)}');
 }
 
+/// Reads a `reset_after` timestamp, in UTC.
+///
+/// Shared by the two places a quota snapshot arrives — the `/limits` response
+/// and the `conversation_detail_metadata` frame carried inline on a turn.
+/// Anything unparseable yields null: a missing reset time costs a UI one
+/// sentence, while throwing would cost it the whole snapshot.
+DateTime? parseResetAfter(Object? value) {
+  if (value is! String) return null;
+  return DateTime.tryParse(value)?.toUtc();
+}
+
 /// Parses the `/models` response into [ModelInfo]s.
 List<ModelInfo> parseModels(String body) {
   final decoded = _requireMap(_decodeJson(body), body);
@@ -84,13 +95,18 @@ Limits parseLimits(String body) {
   final decoded = _requireMap(_decodeJson(body), body);
 
   final remaining = <String, int>{};
+  final resetAfter = <String, DateTime>{};
   for (final e in _listField(decoded, 'limits_progress', body)) {
-    if (e is Map && e['feature_name'] is String && e['remaining'] is int) {
-      remaining[e['feature_name'] as String] = e['remaining'] as int;
+    if (e is Map && e['feature_name'] is String) {
+      final feature = e['feature_name'] as String;
+      if (e['remaining'] is int) remaining[feature] = e['remaining'] as int;
+      final reset = parseResetAfter(e['reset_after']);
+      if (reset != null) resetAfter[feature] = reset;
     }
   }
   return Limits(
     remaining: remaining,
+    resetAfter: resetAfter,
     cappedModels: [
       for (final m in _listField(decoded, 'model_limits', body))
         if (m is Map && m['model_slug'] is String) m['model_slug'] as String

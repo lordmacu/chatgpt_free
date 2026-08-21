@@ -42,6 +42,7 @@ void main() {
       ImageGenerated('https://x/y.png'),
       ModelDowngraded(requested: 'gpt-5-6', actual: 'gpt-5-6-mini'),
       QuotaRotated('hourly limit'),
+      ConversationTitled('Decir hola mundo'),
       ReplyCompleted(),
       TurnCompleted(actualModel: 'gpt-5-6', finishReason: 'stop'),
     ];
@@ -55,12 +56,14 @@ void main() {
           ImageGenerated() => 'image',
           ModelDowngraded() => 'downgrade',
           QuotaRotated() => 'rotated',
+          ConversationTitled() => 'titled',
           ReplyCompleted() => 'reply-done',
           TurnCompleted() => 'done',
         });
 
-    expect(kinds.length, 10);
+    expect(kinds.length, 11);
     expect(kinds, contains('downgrade'));
+    expect(kinds, contains('titled'));
   });
 
   // Fix round 1, Finding 1: copyWith is the safe way to extend an existing

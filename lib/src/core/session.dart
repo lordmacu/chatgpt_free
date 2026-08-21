@@ -137,6 +137,7 @@ class ChatGptSession {
 
   String _deviceId;
   String? _conversationId;
+  String? _title;
   String? _parentMessageId;
   bool _firstTurn = true;
 
@@ -156,6 +157,13 @@ class ChatGptSession {
   /// The server-side conversation id, once the backend has issued one.
   String? get conversationId => _conversationId;
 
+  /// The title the backend generated for this conversation, if any.
+  ///
+  /// It rides the reply stream, so it lands a beat after the answer finishes
+  /// and costs no extra request. [loadHistory] fills it in too, for a
+  /// conversation restored from an earlier run.
+  String? get title => _title;
+
   /// Turns exchanged in this session.
   List<ChatMessage> get history => List.unmodifiable(_history);
 
@@ -174,6 +182,8 @@ class ChatGptSession {
     final abandonedDeviceId = _deviceId;
     _deviceId = _uuid.v4();
     _conversationId = null;
+    // The title belonged to the conversation this rotation just abandoned.
+    _title = null;
     _parentMessageId = null;
     _firstTurn = true;
     unawaited(_store.write('device_id', _deviceId));
@@ -350,6 +360,8 @@ class ChatGptSession {
     assistantTurn = _updateHistoryEntry(assistantTurn,
         assistantTurn.copyWith(citations: citations, isStreaming: false));
 
+    if (parser.title != null) _title = parser.title;
+
     if (parser.conversationId.isNotEmpty) {
       _conversationId = parser.conversationId;
       // Namespaced by this session's own device id — see
@@ -409,6 +421,7 @@ class ChatGptSession {
     // session has since rotated away from — must leave local history alone,
     // not wipe it. Replacing good content with nothing is a data loss the
     // caller cannot undo.
+    if (detail.title != null) _title = detail.title;
     if (detail.messages.isEmpty) return detail;
 
     _history

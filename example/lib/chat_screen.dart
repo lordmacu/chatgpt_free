@@ -17,12 +17,13 @@ class Conversation {
   /// The controller driving this conversation.
   final ChatController controller;
 
-  /// Title the backend generated, once the conversation has been fetched.
-  String? serverTitle;
-
-  /// The backend's title when we have fetched it, else the first user turn.
+  /// The backend's own title if it has named this conversation, else the
+  /// first user turn.
+  ///
+  /// The title arrives on the reply stream, so this becomes the real one a
+  /// beat after the first answer — without fetching the conversation back.
   String get title {
-    final fromServer = serverTitle;
+    final fromServer = controller.title;
     if (fromServer != null && fromServer.trim().isNotEmpty) return fromServer;
     for (final m in controller.messages) {
       if (m.role == 'user' && m.text.trim().isNotEmpty) {
@@ -77,9 +78,11 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
               for (final e in limits.remaining.entries)
                 ListTile(
-                    dense: true,
-                    title: Text(e.key),
-                    trailing: Text('${e.value}')),
+                  dense: true,
+                  title: Text(e.key),
+                  subtitle: _resetLabel(limits.resetAfter[e.key]),
+                  trailing: Text('${e.value}'),
+                ),
               if (limits.cappedModels.isNotEmpty)
                 ListTile(
                   dense: true,
@@ -99,6 +102,20 @@ class _ChatScreenState extends State<ChatScreen> {
     } on ChatGptException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     }
+  }
+
+  /// "Back in 3 h 40 m", or nothing when the backend did not say.
+  ///
+  /// A remaining count alone is not actionable once it reaches zero — this is
+  /// the half that tells the user when to come back.
+  Widget? _resetLabel(DateTime? reset) {
+    if (reset == null) return null;
+    final left = reset.difference(DateTime.now().toUtc());
+    if (left.isNegative) return const Text('available now');
+    final hours = left.inHours;
+    final minutes = left.inMinutes % 60;
+    return Text(
+        hours > 0 ? 'back in ${hours}h ${minutes}m' : 'back in ${minutes}m');
   }
 
   Conversation _newConversation() {
@@ -159,10 +176,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Pull the transcript back from the backend rather than trusting the local
     // copy: an anonymous conversation is readable by id from the device that
     // created it, which is what makes this drawer more than a UI illusion.
-    final title = await _conversations[index].controller.loadHistory();
-    if (title != null && mounted) {
-      setState(() => _conversations[index].serverTitle = title);
-    }
+    await _conversations[index].controller.loadHistory();
   }
 
   void _delete(int index) {
