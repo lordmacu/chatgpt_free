@@ -21,7 +21,7 @@ class BuildScreen extends StatefulWidget {
 
 class _BuildScreenState extends State<BuildScreen> {
   final TextEditingController _prompt =
-      TextEditingController(text: 'una calculadora simple');
+      TextEditingController(text: 'a simple calculator');
 
   UiSpec? _spec;
   String? _error;

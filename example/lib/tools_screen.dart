@@ -65,11 +65,11 @@ const List<FunctionTool> kDemoFunctions = [
 
 /// A few requests worth trying, including the ones that should NOT call.
 const List<String> kSamples = [
-  '¿Qué clima hace en Lima y en Quito?',
-  'Escríbeme un haiku sobre el mar',
-  'Manda un email a ana@example.com',
-  'Pon un timer de 10 minutos para la pasta',
-  'Vuelos directos de BOG a MEX el 2026-09-14',
+  'What is the weather in Lima and in Quito?',
+  'Write me a haiku about the sea',
+  'Send an email to ana@example.com',
+  'Set a 10 minute timer for the pasta',
+  'Nonstop flights BOG to MEX on 2026-09-14',
 ];
 
 /// The tools tab: a request in, function calls out.

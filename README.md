@@ -8,6 +8,51 @@ ChatGPT in Flutter with no API key and no account.
 > without notice. Use it for prototypes and personal projects, not for
 > anything you need to keep working.
 
+## What it looks like
+
+Every screenshot below is the app in `example/`, running against the real
+anonymous endpoint — no account, no API key, no proxy in between.
+
+### Chat
+
+| Streaming reply | Web search, with sources | Conversations |
+| --- | --- | --- |
+| ![A streamed reply in the chat tab](doc/screenshots/chat.png) | ![A reply with citation chips under it](doc/screenshots/web-search.png) | ![A drawer listing three conversations by their backend-generated titles](doc/screenshots/conversations.png) |
+| `ChatController` plus `ChatView`. | Citations arrive as `CitationsReceived`; tapping one is the app's call. | The titles are the backend's own, and they ride the reply stream — no extra request. |
+
+### Attachments, JSON and Canvas
+
+| Pending attachment | The model reads it | JSON mode |
+| --- | --- | --- |
+| ![A chip above the composer reading report.txt, 102 chars](doc/screenshots/attachments-pending.png) | ![A reply summarising the attached report](doc/screenshots/attachments.png) | ![A reply that is a raw JSON object](doc/screenshots/json-mode.png) |
+| The app picks the file; the package takes no platform dependency for it. | Attachment text is inlined into the prompt — see [Attachments](#attachments-and-what-the-anonymous-backend-really-does-with-files) for why that is the only thing that works. | A prompt instruction, not an API flag. Turning it off sends an explicit retraction. |
+
+| Canvas | Quota |
+| --- | --- |
+| ![A long document rendered as a canvas reply](doc/screenshots/canvas.png) | ![A sheet listing file_upload, paste_text_to_file and dictation with counts and reset times](doc/screenshots/limits.png) |
+| Long-form documents come back as a `CanvasDocument`, markers stripped. | `Limits.remaining` and `Limits.resetAfter`, read without spending a message. |
+
+### Translation
+
+| |
+| --- |
+| ![English text translated to Spanish, with a language picker](doc/screenshots/translate.png) |
+| `client.translate()` hits a different endpoint and spends **no** chat message — it keeps working after the hourly cap has stopped the chat. |
+
+### Function calling ([`tools.dart`](#function-calling-packagechatgpt_freetoolsdart))
+
+| One request, two calls | A parameter nobody stated |
+| --- | --- |
+| ![Two get_weather calls, for Lima and Quito, each with a call id](doc/screenshots/tools.png) | ![send_email needs more: subject and body were never stated](doc/screenshots/tools-need-info.png) |
+| The backend has no function calling; this is a separate stateless request that produces it anyway. | Asked for, not invented — an invented subject validates against the schema just as well as a real one. |
+
+### Generated interfaces ([`ui_schema.dart`](#generated-interfaces-packagechatgpt_freeui_schemadart))
+
+| |
+| --- |
+| ![A calculator built from the model's JSON, showing the result 15](doc/screenshots/develop.png) |
+| Asked for "a simple calculator", the model described one in JSON and this rendered it as real widgets. The 15 on the display is 7 + 8, computed by the arithmetic parser — nothing generated is executed. |
+
 ## Install
 
 ```yaml
