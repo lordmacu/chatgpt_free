@@ -155,3 +155,39 @@ final class TurnCompleted extends ChatEvent {
   /// Quota state reported inline with this turn, when present.
   final Limits? limits;
 }
+
+/// The whole reply of a turn, as one string.
+///
+/// The backend has no non-streaming mode — it answers `text/event-stream`
+/// whatever you ask for, verified against `force_use_sse: false`,
+/// `stream: false` and `Accept: application/json`. What it does not require
+/// is that you CONSUME the answer incrementally, and most callers do not want
+/// to.
+///
+/// Use this on any [ChatEvent] stream, including
+/// [ChatGptClient.sendWithRotation], when you want the finished text rather
+/// than the typing:
+///
+/// ```dart
+/// final reply = await collectText(client.sendWithRotation(session, 'hola'));
+/// ```
+///
+/// It exists mainly to own the one way this is easy to get wrong. A
+/// [TextDelta] with `isReset` means the backend replaced what it had already
+/// streamed, so appending every delta duplicates text the backend just
+/// discarded. That shipped as a real bug once.
+Future<String> collectText(Stream<ChatEvent> events) async {
+  final buffer = StringBuffer();
+  await for (final event in events) {
+    if (event is TextDelta) {
+      if (event.isReset) {
+        buffer
+          ..clear()
+          ..write(event.text);
+      } else {
+        buffer.write(event.text);
+      }
+    }
+  }
+  return buffer.toString();
+}

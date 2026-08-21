@@ -443,26 +443,31 @@ class ChatGptSession {
     String message, {
     SendOptions options = const SendOptions(),
     List<TextAttachment> attachments = const [],
-  }) async {
-    final buffer = StringBuffer();
-    await for (final event in send(
-      message,
-      options: options.copyWith(jsonMode: true),
-      attachments: attachments,
-    )) {
-      if (event is TextDelta) {
-        // Fold, never concatenate: isReset means the backend replaced the reply.
-        if (event.isReset) {
-          buffer
-            ..clear()
-            ..write(event.text);
-        } else {
-          buffer.write(event.text);
-        }
-      }
-    }
-    return decodeJsonReply(buffer.toString());
-  }
+  }) async =>
+      decodeJsonReply(await collectText(send(
+        message,
+        options: options.copyWith(jsonMode: true),
+        attachments: attachments,
+      )));
+
+  /// Sends [message] and returns the whole reply, without a stream.
+  ///
+  /// The turn still streams on the wire — the backend has no other mode — but
+  /// this waits for it and hands back the finished text. Reach for [send]
+  /// instead when you want to show the answer as it is written.
+  ///
+  /// Note this does NOT rotate the device id on the hourly cap; it throws
+  /// [RateLimitedException] like [send] does. For the rotating equivalent:
+  ///
+  /// ```dart
+  /// final reply = await collectText(client.sendWithRotation(session, 'hola'));
+  /// ```
+  Future<String> ask(
+    String message, {
+    SendOptions options = const SendOptions(),
+    List<TextAttachment> attachments = const [],
+  }) =>
+      collectText(send(message, options: options, attachments: attachments));
 
   /// Releases the transport, but only if this session created it itself.
   /// An injected transport may be shared by its owner (e.g. across every

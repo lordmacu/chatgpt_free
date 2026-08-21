@@ -1,5 +1,9 @@
 ## 0.1.1
 
+- `session.ask()` and `collectText()`: the reply as one `Future<String>`, for
+  callers who do not want a stream. The wire is always SSE — the backend has
+  no other mode — but consuming it incrementally was never required, and the
+  fold these do is the one part of it that is easy to get wrong.
 - README: "The library in one page" — the whole client surface up front, with
   every `SendOptions` field, every `ChatEvent`, every exception, and what each
   call costs from the anonymous allowance. The README used to open with a

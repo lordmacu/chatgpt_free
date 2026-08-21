@@ -79,12 +79,34 @@ import 'package:chatgpt_free/chatgpt_free.dart';
 final client = ChatGptClient();
 final session = client.newSession();
 
-await for (final event in session.send('Explain recursion in one sentence.')) {
-  if (event is TextDelta) stdout.write(event.text);
-}
+print(await session.ask('Explain recursion in one sentence.'));
 
 client.close();
 ```
+
+### Streaming or not, your choice
+
+The backend has no non-streaming mode. It answers `text/event-stream`
+whatever you ask for — verified against `force_use_sse: false`,
+`stream: false` and `Accept: application/json`, and on both the `/f/` and
+plain `/conversation` paths. What it does not require is that **you** consume
+the answer incrementally.
+
+```dart
+// The finished text. Simplest, and what most callers want.
+final reply = await session.ask('Explain recursion in one sentence.');
+
+// The same, but rotating the device id if the hourly cap trips.
+final reply = await collectText(client.sendWithRotation(session, '…'));
+
+// As it is written, for a typing effect.
+await for (final event in session.send('…')) {
+  if (event is TextDelta) { /* … see the isReset note below */ }
+}
+```
+
+`ask` and `collectText` exist mainly to own the one thing that is easy to get
+wrong here — see `isReset` under [What comes back](#what-comes-back).
 
 ### The client
 
