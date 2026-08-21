@@ -1,5 +1,10 @@
 ## 0.1.1
 
+- Documented `translate` properly, and fixed two languages in the example that
+  never worked: the endpoint rejects bare `pt` and `zh`, which need a region
+  (`pt-BR`, `zh-CN`). The accepted codes are a fixed list, not a standard —
+  `en-US` works and `en-GB` does not — so the README states the measured set
+  and live tests keep it measured.
 - `session.ask()` and `collectText()`: the reply as one `Future<String>`, for
   callers who do not want a stream. The wire is always SSE — the backend has
   no other mode — but consuming it incrementally was never required, and the

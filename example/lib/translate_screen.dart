@@ -4,15 +4,20 @@ import 'package:flutter/services.dart';
 
 /// A short, readable set of languages. The backend accepts any code — this
 /// list stays small because the example is documentation, not a product.
+/// Every code here was checked against the live endpoint, because the
+/// backend's list is arbitrary and cannot be derived: `fr` and `de` work
+/// bare, but `pt` and `zh` are rejected and need a region, `en-US` works
+/// while `en-GB` does not, and `he`, `uk`, `el` and `da` do not exist at all.
+/// `pt` and `zh` shipped here and always failed.
 const Map<String, String> kLanguages = {
   'es': 'Español',
   'en': 'English',
-  'pt': 'Português',
+  'pt-BR': 'Português',
   'fr': 'Français',
   'de': 'Deutsch',
   'it': 'Italiano',
   'ja': '日本語',
-  'zh': '中文',
+  'zh-CN': '中文',
   'ko': '한국어',
   'ru': 'Русский',
   'ar': 'العربية',

@@ -381,6 +381,59 @@ without checking it will silently duplicate text the first time the backend
 edits a reply mid-stream. This shipped as a real bug once; the `switch`
 above is the correct shape.
 
+## Translation
+
+The one capability here that costs **nothing** from the chat allowance. It is
+a different endpoint, not a chat turn dressed up as one, so it keeps working
+after the hourly cap has stopped the chat entirely — which is exactly when an
+app most wants a fallback.
+
+```dart
+final client = ChatGptClient();
+
+await client.translate('The quick brown fox', target: 'es');
+// El rápido zorro marrón
+
+await client.translate('good morning', target: 'ja');
+// おはようございます
+```
+
+`source` is optional, and in practice decorative: the backend detects the
+language itself. Passing a deliberately **wrong** source still returns the
+correct translation, so do not rely on it to force an interpretation.
+
+It runs on its own throwaway device id, not any session's, so it is never
+scoped to a conversation and never eats into one.
+
+### Language codes are a fixed list, not a standard
+
+This is the part worth knowing before you build a picker. The accepted codes
+cannot be derived from any rule — checked against the live endpoint:
+
+| | |
+| --- | --- |
+| Work bare | `es` `en` `fr` `de` `it` `ja` `ko` `ru` `ar` `hi` `nl` `sv` `pl` `tr` `id` `vi` `th` `cs` `ro` `hu` `fi` |
+| **Need a region** | `pt-BR` / `pt-PT`, `zh-CN` / `zh-TW` — bare `pt` and `zh` are **rejected** |
+| Regional variants that work | `es-419` `es-ES` `en-US` `fr-CA` |
+| Rejected outright | `en-GB`, `he`, `uk`, `el`, `da`, `nb`, `no`, `zh-Hant` |
+
+An unsupported code is `HTTP 400 {"detail":"Invalid target language"}`,
+surfaced as `TransportException`. The package ships no list of its own: any
+list would be a guess beyond the codes actually probed, and a wrong one is
+worse than none. Handle the error and let the backend be the authority.
+
+```dart
+try {
+  final out = await client.translate(text, target: code);
+} on ChatGptException catch (e) {
+  // Includes "this language is not supported", which is not knowable up front.
+}
+```
+
+Other measured edges: empty text is `HTTP 400 {"detail":"Missing text"}`,
+translating into the language the text is already in returns it unchanged,
+and 4,000 characters go through in one call.
+
 ## Limits
 
 There's no billing and no dashboard, so the anonymous quota is whatever the
