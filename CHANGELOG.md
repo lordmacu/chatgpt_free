@@ -1,14 +1,24 @@
-## 0.1.1
+## 0.1.2
 
-- Documented `translate` properly, and fixed two languages in the example that
-  never worked: the endpoint rejects bare `pt` and `zh`, which need a region
-  (`pt-BR`, `zh-CN`). The accepted codes are a fixed list, not a standard —
-  `en-US` works and `en-GB` does not — so the README states the measured set
-  and live tests keep it measured.
+- **Fixed two languages in the example that never worked.** The translate
+  endpoint rejects bare `pt` and `zh`; they need a region (`pt-BR`, `zh-CN`).
+  Anyone picking Português or 中文 in the demo got HTTP 400, in 0.1.0 and
+  0.1.1 alike.
+- Documented `translate`. The accepted codes are a fixed list, not a standard
+  — `fr` works bare and `pt` does not, `en-US` works and `en-GB` does not —
+  so the README states the measured set, says the package ships no list of
+  its own, and live tests keep the table from going stale. Also measured:
+  `source` is decorative, empty text is a 400, and 4,000 characters go
+  through in one call.
 - `session.ask()` and `collectText()`: the reply as one `Future<String>`, for
   callers who do not want a stream. The wire is always SSE — the backend has
-  no other mode — but consuming it incrementally was never required, and the
-  fold these do is the one part of it that is easy to get wrong.
+  no other mode, verified against `force_use_sse: false`, `stream: false` and
+  `Accept: application/json` — but consuming it incrementally was never
+  required, and the fold these do is the one part of it that is easy to get
+  wrong.
+
+## 0.1.1
+
 - README: "The library in one page" — the whole client surface up front, with
   every `SendOptions` field, every `ChatEvent`, every exception, and what each
   call costs from the anonymous allowance. The README used to open with a
