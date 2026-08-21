@@ -107,6 +107,18 @@ ToolEnvelope parseToolEnvelope(
     final fromPayload =
         detectToolCalls(payload, validNames, functions: functions);
     if (fromPayload != null) return EnvelopeCalls(fromPayload, notes);
+
+    // An explicitly EMPTY calls array is the model choosing this envelope and
+    // saying there are none. Detection is right to see no call there, but at
+    // this layer the emptiness IS the answer — reading it as unreadable would
+    // spend a repair round trip on a perfectly clear reply. Only the
+    // documented shape counts: a bare [] elsewhere is data.
+    for (final candidate in [payload, extractJson(payload)]) {
+      if (_tryDecodeObject(candidate)?['calls'] case final List<dynamic> l
+          when l.isEmpty) {
+        return EnvelopeCalls(const [], notes);
+      }
+    }
     notes.add('marker-payload-unreadable');
   } else {
     notes.add('no-marker');

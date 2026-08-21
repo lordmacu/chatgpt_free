@@ -190,6 +190,18 @@ void main() {
           parse('<think>maybe {"name":"get_weather","arguments":{}}'), isNull);
     });
 
+    test('a reasoning block is stripped even when nothing follows it', () {
+      // Mutation testing caught the case above it passing for the wrong
+      // reason: with the draft mid-message the prose heuristic already
+      // rejected it, so the test held with think-stripping disabled. Here the
+      // draft is the ONLY candidate and it ends the message, so nothing but
+      // the strip can save it.
+      expect(
+          parse('<think>{"name":"get_weather","arguments":{"city":"DRAFT"}}'
+              '</think>'),
+          isNull);
+    });
+
     test('braces inside string values do not close the object', () {
       const text = '{"name":"get_weather","arguments":{"city":"Lima } Peru"}}';
       expect(parse(text)!.single.arguments['city'], 'Lima } Peru');
@@ -345,6 +357,19 @@ void main() {
   });
 
   group('how it composes with our own markers', () {
+    test('an explicitly empty calls array is no-call, not unreadable', () {
+      // The model chose the call envelope and said there are none. Reading
+      // that as unreadable spends a repair round trip on a perfectly clear
+      // answer. (Regression: the pre-detector parser got this right, and the
+      // port lost it, because to DETECTION an empty list is correctly not a
+      // call.)
+      final envelope = parseToolEnvelope('$kToolCallMarker{"calls":[]}', _names,
+          functions: _funcs);
+
+      expect((envelope as EnvelopeCalls).calls, isEmpty);
+      expect(envelope.notes, isNot(contains('invalid-json')));
+    });
+
     test('a reply in another dialect no longer costs a repair', () {
       // No marker, no {"calls": …} envelope — just the call, in a shape the
       // model was never asked for. This used to come back unreadable and spend
