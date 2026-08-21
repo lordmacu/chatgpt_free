@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:chatgpt_free/widgets.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -53,6 +56,7 @@ class _ChatScreenState extends State<ChatScreen> {
   int _active = 0;
   bool _jsonMode = false;
   bool _canvas = false;
+  final List<TextAttachment> _pending = [];
 
   @override
   void initState() {
@@ -116,6 +120,53 @@ class _ChatScreenState extends State<ChatScreen> {
     final minutes = left.inMinutes % 60;
     return Text(
         hours > 0 ? 'back in ${hours}h ${minutes}m' : 'back in ${minutes}m');
+  }
+
+  /// Picks files and reads them as text.
+  ///
+  /// Text on purpose. The anonymous backend does have a file-upload endpoint —
+  /// creating one returns a signed URL and the blob PUT succeeds — but
+  /// finalising it answers 401, so the model never sees the content while the
+  /// attempt still spends one of the three daily uploads. Inlining the text is
+  /// the thing that actually works, and it costs nothing from that quota.
+  Future<void> _attach() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final picked = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+    );
+    if (picked == null || !mounted) return;
+
+    final rejected = <String>[];
+    for (final file in picked.files) {
+      final bytes = file.bytes;
+      if (bytes == null) continue;
+      try {
+        // Strict: a file that is not UTF-8 is binary, and inlining its bytes
+        // would spend context on gibberish rather than fail honestly.
+        final text = const Utf8Decoder().convert(bytes);
+        setState(
+            () => _pending.add(TextAttachment(name: file.name, content: text)));
+      } on FormatException {
+        rejected.add(file.name);
+      }
+    }
+    if (rejected.isNotEmpty) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Not text, so not attached: ${rejected.join(', ')}'),
+      ));
+    }
+  }
+
+  Future<void> _send(String text) async {
+    final attachments = List<TextAttachment>.of(_pending);
+    setState(_pending.clear);
+    await _controller.send(
+      text,
+      options: _controller.currentOptions
+          .copyWith(jsonMode: _jsonMode, canvas: _canvas ? true : null),
+      attachments: attachments,
+    );
   }
 
   Conversation _newConversation() {
@@ -265,10 +316,20 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           body: ChatView(
             controller: _controller,
-            // currentOptions.copyWith, never a bare SendOptions literal: a
-            // literal would silently drop the picker's model back to auto.
-            sendOptions: _controller.currentOptions
-                .copyWith(jsonMode: _jsonMode, canvas: _canvas ? true : null),
+            // onSend, not sendOptions: the attachments are ours to clear once
+            // they have been spent, and the view cannot know when that is.
+            onSend: _send,
+            composerLeading: IconButton(
+              tooltip: 'Attach a text file',
+              onPressed: _controller.isStreaming ? null : _attach,
+              icon: const Icon(Icons.attach_file),
+            ),
+            composerHeader: _pending.isEmpty
+                ? null
+                : _AttachmentBar(
+                    attachments: _pending,
+                    onRemove: (a) => setState(() => _pending.remove(a)),
+                  ),
             onCitationTap: (citation) => _openSource(context, citation),
             onStartNewConversation: _startConversation,
           ),
@@ -376,4 +437,37 @@ class _ToggleAction extends StatelessWidget {
       onPressed: onPressed,
     );
   }
+}
+
+/// Chips for the files waiting to go out with the next message.
+class _AttachmentBar extends StatelessWidget {
+  const _AttachmentBar({required this.attachments, required this.onRemove});
+
+  final List<TextAttachment> attachments;
+  final ValueChanged<TextAttachment> onRemove;
+
+  @override
+  Widget build(BuildContext context) => Align(
+        alignment: Alignment.centerLeft,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              for (final a in attachments)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: InputChip(
+                    avatar: const Icon(Icons.description_outlined, size: 18),
+                    // The character count is the honest unit here: the text is
+                    // inlined into the prompt, so a big file eats the 34,834
+                    // token context window.
+                    label: Text('${a.name} · ${a.content.length} chars'),
+                    onDeleted: () => onRemove(a),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 }

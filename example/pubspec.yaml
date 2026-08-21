@@ -15,6 +15,12 @@ dependencies:
   # citation is the app's job. Adding it here proves the callback is usable
   # without pushing the dependency onto every consumer.
   url_launcher: ^6.3.0
+  # Example-only, same reasoning: reading a file needs a platform plugin, and
+  # the package has none. The anonymous backend cannot ingest a real upload
+  # (creating one succeeds, finalising it is account-gated), so what goes over
+  # the wire is the file's TEXT, inlined into the prompt — which is what
+  # TextAttachment is.
+  file_picker: ^8.1.0
 
 dev_dependencies:
   flutter_test:

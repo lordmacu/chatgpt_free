@@ -222,4 +222,52 @@ void main() {
 
     expect(tapped.single.url, 'https://sgc.gov.co');
   });
+
+  testWidgets('onSend replaces the default send, so the app can attach files',
+      (tester) async {
+    final controller =
+        ChatController(client: ChatGptClient(transport: FakeTransport()));
+    addTearDown(controller.dispose);
+    final sent = <String>[];
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatView(controller: controller, onSend: sent.add),
+      ),
+    ));
+
+    await tester.enterText(find.byType(TextField), 'con adjunto');
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sent, ['con adjunto']);
+    // The view must not ALSO have sent it: that would spend two messages of
+    // the anonymous quota for one press.
+    expect(controller.messages, isEmpty);
+  });
+
+  testWidgets('composerLeading and composerHeader render where they belong',
+      (tester) async {
+    final controller =
+        ChatController(client: ChatGptClient(transport: FakeTransport()));
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: ChatView(
+          controller: controller,
+          composerLeading: const Icon(Icons.attach_file),
+          composerHeader: const Text('nota.txt'),
+        ),
+      ),
+    ));
+
+    expect(find.byIcon(Icons.attach_file), findsOneWidget);
+    expect(find.text('nota.txt'), findsOneWidget);
+
+    final header = tester.getCenter(find.text('nota.txt'));
+    final field = tester.getCenter(find.byType(TextField));
+    expect(header.dy, lessThan(field.dy),
+        reason: 'the header sits above the composer');
+  });
 }

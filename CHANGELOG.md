@@ -7,6 +7,8 @@
 - Reports the backend's own conversation title as it arrives on the reply
   stream (`ConversationTitled`, `session.title`, `ChatController.title`).
 - `Limits.resetAfter` says when each capped feature comes back.
+- `ChatView`: `onSend`, `composerLeading` and `composerHeader`, so an app
+  can attach files without the package taking a platform dependency.
 - Flutter layer: `ChatController` plus themed widgets and `ChatView`.
 - Proof of concept: `package:chatgpt_free/ui_schema.dart`, a JSON vocabulary
   the model can use to describe a screen, and `JsonUiView` to render it.

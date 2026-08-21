@@ -7,6 +7,7 @@ class MessageComposer extends StatefulWidget {
     required this.onSend,
     this.enabled = true,
     this.hintText = 'Message…',
+    this.leading,
     super.key,
   });
 
@@ -18,6 +19,13 @@ class MessageComposer extends StatefulWidget {
 
   /// Placeholder text.
   final String hintText;
+
+  /// Widget shown before the text field — an attach button, typically.
+  ///
+  /// The package attaches nothing itself: reading a file needs a platform
+  /// plugin, and this package has no platform dependencies. This is where an
+  /// app puts its own.
+  final Widget? leading;
 
   @override
   State<MessageComposer> createState() => _MessageComposerState();
@@ -45,6 +53,10 @@ class _MessageComposerState extends State<MessageComposer> {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
+            if (widget.leading != null) ...[
+              widget.leading!,
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: TextField(
                 controller: _controller,

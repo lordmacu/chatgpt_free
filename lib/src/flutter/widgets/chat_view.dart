@@ -17,6 +17,9 @@ class ChatView extends StatelessWidget {
     this.onCitationTap,
     this.onStartNewConversation,
     this.sendOptions,
+    this.onSend,
+    this.composerLeading,
+    this.composerHeader,
     super.key,
   });
 
@@ -48,6 +51,24 @@ class ChatView extends StatelessWidget {
   /// `SendOptions(...)` literal — a literal silently resets `model` to its
   /// default and the turn goes out as `auto`.
   final SendOptions? sendOptions;
+
+  /// Overrides what pressing send does.
+  ///
+  /// The default sends [text] through [controller] with [sendOptions]. Supply
+  /// this when a turn needs something the view does not own — attachments the
+  /// app picked, for instance — and clear that state here, since the view
+  /// cannot know when it has been consumed. [sendOptions] is then yours to
+  /// pass on or ignore.
+  final ValueChanged<String>? onSend;
+
+  /// Widget placed at the start of the composer row, e.g. an attach button.
+  final Widget? composerLeading;
+
+  /// Widget placed directly above the composer.
+  ///
+  /// For state that belongs to the message being written rather than to the
+  /// transcript: chips for pending attachments, a quoted message, a warning.
+  final Widget? composerHeader;
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
@@ -93,9 +114,12 @@ class ChatView extends StatelessWidget {
                   ),
                 ),
                 if (controller.isWritingReply) const TypingIndicator(),
+                if (composerHeader != null) composerHeader!,
                 MessageComposer(
-                  onSend: (text) => controller.send(text, options: sendOptions),
+                  onSend: onSend ??
+                      (text) => controller.send(text, options: sendOptions),
                   enabled: !controller.isStreaming,
+                  leading: composerLeading,
                 ),
               ],
             ),

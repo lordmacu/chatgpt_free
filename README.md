@@ -252,6 +252,37 @@ the same turn; the last one is the one it kept.
 | Image generation | No — blocked outright for anonymous sessions |
 | Translation, without spending a chat message | Yes — `client.translate()` |
 
+## Attachments, and what the anonymous backend really does with files
+
+`session.send(text, attachments: [...])` takes `TextAttachment`s, and their
+text is inlined into the prompt. That is not a shortcut around a missing
+upload — it is the only thing that works. The anonymous backend does expose
+`POST /files`: it answers 200 with a signed URL and the blob upload
+succeeds, but finalising it (`POST /files/{id}/uploaded`) answers **401**,
+the file never becomes readable, and the attempt still spends one of the
+three uploads allowed per 24 hours. Inline text costs nothing from that
+quota and the model actually reads it.
+
+Reading a file needs a platform plugin, and this package has none, so
+picking one is the app's job. `ChatView` provides the seams:
+
+```dart
+ChatView(
+  controller: controller,
+  // Attachments are yours to clear once spent; the view cannot know when.
+  onSend: (text) async {
+    final pending = List.of(_pending);
+    setState(_pending.clear);
+    await controller.send(text, attachments: pending);
+  },
+  composerLeading: IconButton(onPressed: _pick, icon: Icon(Icons.attach_file)),
+  composerHeader: _pending.isEmpty ? null : _AttachmentChips(_pending),
+)
+```
+
+The `example/` app does exactly this with `file_picker`, and refuses a file
+that is not valid UTF-8 rather than inlining binary into the prompt.
+
 ## Persisting state across restarts
 
 The package keeps no platform storage dependency of its own — it stores
