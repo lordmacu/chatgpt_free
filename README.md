@@ -17,40 +17,40 @@ anonymous endpoint — no account, no API key, no proxy in between.
 
 | Streaming reply | Web search, with sources | Conversations |
 | --- | --- | --- |
-| ![A streamed reply in the chat tab](doc/screenshots/chat.png) | ![A reply with citation chips under it](doc/screenshots/web-search.png) | ![A drawer listing three conversations by their backend-generated titles](doc/screenshots/conversations.png) |
+| ![A streamed reply in the chat tab](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/chat.png) | ![A reply with citation chips under it](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/web-search.png) | ![A drawer listing three conversations by their backend-generated titles](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/conversations.png) |
 | `ChatController` plus `ChatView`. | Citations arrive as `CitationsReceived`; tapping one is the app's call. | The titles are the backend's own, and they ride the reply stream — no extra request. |
 
 ### Attachments, JSON and Canvas
 
 | Pending attachment | The model reads it | JSON mode |
 | --- | --- | --- |
-| ![A chip above the composer reading report.txt, 102 chars](doc/screenshots/attachments-pending.png) | ![A reply summarising the attached report](doc/screenshots/attachments.png) | ![A reply that is a raw JSON object](doc/screenshots/json-mode.png) |
+| ![A chip above the composer reading report.txt, 102 chars](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/attachments-pending.png) | ![A reply summarising the attached report](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/attachments.png) | ![A reply that is a raw JSON object](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/json-mode.png) |
 | The app picks the file; the package takes no platform dependency for it. | Attachment text is inlined into the prompt — see [Attachments](#attachments-and-what-the-anonymous-backend-really-does-with-files) for why that is the only thing that works. | A prompt instruction, not an API flag. Turning it off sends an explicit retraction. |
 
 | Canvas | Quota |
 | --- | --- |
-| ![A long document rendered as a canvas reply](doc/screenshots/canvas.png) | ![A sheet listing file_upload, paste_text_to_file and dictation with counts and reset times](doc/screenshots/limits.png) |
+| ![A long document rendered as a canvas reply](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/canvas.png) | ![A sheet listing file_upload, paste_text_to_file and dictation with counts and reset times](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/limits.png) |
 | Long-form documents come back as a `CanvasDocument`, markers stripped. | `Limits.remaining` and `Limits.resetAfter`, read without spending a message. |
 
 ### Translation
 
 | |
 | --- |
-| ![English text translated to Spanish, with a language picker](doc/screenshots/translate.png) |
+| ![English text translated to Spanish, with a language picker](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/translate.png) |
 | `client.translate()` hits a different endpoint and spends **no** chat message — it keeps working after the hourly cap has stopped the chat. |
 
 ### Function calling ([`tools.dart`](#function-calling-packagechatgpt_freetoolsdart))
 
 | One request, two calls | A parameter nobody stated |
 | --- | --- |
-| ![Two get_weather calls, for Lima and Quito, each with a call id](doc/screenshots/tools.png) | ![send_email needs more: subject and body were never stated](doc/screenshots/tools-need-info.png) |
+| ![Two get_weather calls, for Lima and Quito, each with a call id](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/tools.png) | ![send_email needs more: subject and body were never stated](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/tools-need-info.png) |
 | The backend has no function calling; this is a separate stateless request that produces it anyway. | Asked for, not invented — an invented subject validates against the schema just as well as a real one. |
 
 ### Generated interfaces ([`ui_schema.dart`](#generated-interfaces-packagechatgpt_freeui_schemadart))
 
 | |
 | --- |
-| ![A calculator built from the model's JSON, showing the result 15](doc/screenshots/develop.png) |
+| ![A calculator built from the model's JSON, showing the result 15](https://raw.githubusercontent.com/lordmacu/chatgpt_free/main/doc/screenshots/develop.png) |
 | Asked for "a simple calculator", the model described one in JSON and this rendered it as real widgets. The 15 on the display is 7 + 8, computed by the arithmetic parser — nothing generated is executed. |
 
 ## Install
@@ -60,9 +60,139 @@ dependencies:
   chatgpt_free: ^0.1.0
 ```
 
-## Quickstart
+## The library in one page
 
-A full chat screen in ten lines, built on `ChatController` and `ChatView`:
+Four import points, and you take only what you need:
+
+| Import | What it gives you |
+| --- | --- |
+| `package:chatgpt_free/chatgpt_free.dart` | The client. Pure Dart, no Flutter widgets — this is the whole protocol. |
+| `package:chatgpt_free/widgets.dart` | The Flutter layer: `ChatController`, `ChatView` and the pieces it is built from. Re-exports the core, so importing both is never necessary. |
+| `package:chatgpt_free/tools.dart` | Function calling, emulated. Optional. |
+| `package:chatgpt_free/ui_schema.dart` | Interfaces the model describes in JSON. A proof of concept, optional. |
+
+The smallest thing that works — no Flutter, no widgets, no keys:
+
+```dart
+import 'package:chatgpt_free/chatgpt_free.dart';
+
+final client = ChatGptClient();
+final session = client.newSession();
+
+await for (final event in session.send('Explain recursion in one sentence.')) {
+  if (event is TextDelta) stdout.write(event.text);
+}
+
+client.close();
+```
+
+### The client
+
+```dart
+ChatGptClient({
+  Transport? transport,   // swap the HTTP layer, mostly for tests
+  ChatGptStore? store,    // where the device id and conversation id survive restarts
+  int maxRotations = 1,   // how often sendWithRotation may burn a device id
+})
+```
+
+| Method | What it does | Spends a message? |
+| --- | --- | --- |
+| `newSession({systemPrompt})` | A new conversation on a brand-new device id. | no |
+| `restoreSession({systemPrompt})` | Resumes the device and conversation last written to `store`. | no |
+| `newEphemeralSession({systemPrompt})` | A session that never writes to `store` — for work that is not the user's conversation. | no |
+| `sendWithRotation(session, text, …)` | `session.send`, but a hourly cap rotates the device id and retries instead of throwing. | yes |
+| `models()` | Every model the backend offers this session, with context windows and enabled tools. | no |
+| `limits()` | Quota for a throwaway probe device. For **this** session's own standing use `session.limits()`. | no |
+| `translate(text, target: 'es', source: 'en')` | A different endpoint entirely: costs **nothing** from the chat allowance, and keeps working after the hourly cap has stopped the chat. | no |
+| `close()` | Releases the HTTP client. | no |
+
+### The session
+
+| Member | What it is |
+| --- | --- |
+| `send(text, {options, attachments})` | The turn. Returns a `Stream<ChatEvent>`. |
+| `sendJson(text, {options, attachments})` | Same turn asked for JSON, returned decoded. Throws `ProtocolException` if the reply is not JSON. |
+| `loadHistory()` | Re-reads this conversation from the backend by id. Anonymous conversations are readable only from the device that created them. |
+| `limits()` | This session's own quota — the honest one, since quota is per device id. |
+| `reset()` | New device, empty history, persisted state cleared. |
+| `rotateDevice()` | New device id, keeping local history to replay into the next prompt. |
+| `deviceId` · `conversationId` · `title` · `history` | Where the session currently stands. `title` is the backend's own, and it arrives on the reply stream. |
+| `close()` | Releases the session. |
+
+### Options for a turn
+
+Every field of `SendOptions`, and nothing more — this is the whole set the
+Android app itself can set:
+
+| Field | Type | Default | What it does |
+| --- | --- | --- | --- |
+| `model` | `String` | `'auto'` | Requested model. The anonymous backend picks its own and ignores this; it is here for the day that changes. |
+| `webSearch` | `bool?` | null | Force search on or off. Null lets the backend decide. |
+| `tools` | `bool?` | null | The backend's own advanced tools, not yours. |
+| `canvas` | `bool?` | null | Long-form documents, delivered as `CanvasDocument`. |
+| `jsonMode` | `bool` | `false` | Ask for JSON. A prompt instruction, not an API flag — turning it off later sends an explicit retraction. |
+| `thinkingEffort` | `ThinkingEffort?` | null | `standard`, `extended`, `max`. |
+| `serviceTier` | `ServiceTier?` | null | `standard`, `priority`. |
+
+There is no `temperature`, `top_p`, `max_tokens`, `seed` or `n`. Not omitted
+— **the protocol has no such fields**, in either mode, so a wrapper offering
+them would be lying to you.
+
+Use `copyWith` rather than a fresh literal when overriding one field:
+a bare `SendOptions(jsonMode: true)` silently resets `model` back to `auto`.
+
+```dart
+await session.send(
+  'Summarise this',
+  options: const SendOptions(model: 'gpt-5-6').copyWith(jsonMode: true),
+  attachments: [TextAttachment(name: 'notes.txt', content: notes)],
+);
+```
+
+### What comes back
+
+`ChatEvent` is a sealed class, so a `switch` over it is exhaustive and the
+compiler flags any event you have not handled:
+
+| Event | Carries | When |
+| --- | --- | --- |
+| `TextDelta` | `text`, `isReset` | The reply, as it is written. **Fold on `isReset`** — see below. |
+| `SearchStarted` | `queries` | The backend went to the web. |
+| `CitationsReceived` | `citations` | Sources for what it found. |
+| `CanvasDocument` | `markdown`, `title` | A long-form document, markers already stripped. |
+| `GenuiWidgetEvent` | `name`, `data` | A generative-UI widget the backend emitted. |
+| `ImageGenerated` | `url` | Anonymous sessions never see this — image generation is blocked. |
+| `ModelDowngraded` | `requested`, `actual` | The backend quietly answered with a smaller model. |
+| `ConversationTitled` | `title` | The backend named the conversation. |
+| `QuotaRotated` | `reason` | `sendWithRotation` burned a device id and retried. |
+| `ReplyCompleted` | — | The answer is finished. **Stop your typing indicator here**, not at `TurnCompleted`. |
+| `TurnCompleted` | `actualModel`, `finishReason`, `limits` | The stream closed, several seconds later. |
+
+`isReset` is not decorative. Appending on every `TextDelta` without checking
+it silently duplicates text the first time the backend edits a reply
+mid-stream:
+
+```dart
+buffer = event.isReset ? event.text : buffer + event.text;
+```
+
+### When it fails
+
+Every failure is a `ChatGptException`, which is sealed — one `catch` covers
+the lot, and a `switch` over it is exhaustive:
+
+| Exception | Means |
+| --- | --- |
+| `RateLimitedException` | The hourly cap. `sendWithRotation` handles this for you. |
+| `QuotaExceededException` | Still capped after rotating. Ask the user to start a new conversation. |
+| `InvalidRequestException` | The backend rejected the request. |
+| `TransportException` | The network, or a timeout. |
+| `ProtocolException` | The reply did not parse — a backend change, or a reply that is not JSON when you asked for JSON. |
+
+## Quickstart: the Flutter layer
+
+Optional, and built on the client above. A full chat screen in ten lines:
 
 ```dart
 import 'package:chatgpt_free/widgets.dart';

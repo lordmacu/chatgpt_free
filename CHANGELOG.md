@@ -1,3 +1,15 @@
+## 0.1.1
+
+- README: "The library in one page" — the whole client surface up front, with
+  every `SendOptions` field, every `ChatEvent`, every exception, and what each
+  call costs from the anonymous allowance. The README used to open with a
+  Flutter widget example, which is the wrong first thing for a library.
+- README screenshots now use absolute URLs. pub.dev strips relative image
+  links rather than resolving them against `repository`, so 0.1.0 rendered
+  twelve alt texts in square brackets.
+- Fixed the documented signature of `translate`: it takes `target:` and
+  `source:`, not `targetLanguageCode:`.
+
 ## 0.1.0
 
 - First release: anonymous chat with streaming, web search with citations,

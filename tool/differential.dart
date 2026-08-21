@@ -6,7 +6,8 @@ import 'dart:io';
 import 'package:chatgpt_free/tools.dart';
 
 void main(List<String> args) {
-  final spec = jsonDecode(File(args.single).readAsStringSync()) as Map<String, dynamic>;
+  final spec =
+      jsonDecode(File(args.single).readAsStringSync()) as Map<String, dynamic>;
   final functions = [
     for (final f in spec['functions'] as List)
       FunctionTool.fromJson(Map<String, dynamic>.from(f as Map)),
@@ -18,7 +19,9 @@ void main(List<String> args) {
     final calls = detectToolCalls('$text', names, functions: functions);
     out.add(calls == null
         ? null
-        : [for (final c in calls) {'name': c.name, 'arguments': c.arguments}]);
+        : [
+            for (final c in calls) {'name': c.name, 'arguments': c.arguments}
+          ]);
   }
   stdout.write(const JsonEncoder.withIndent('  ').convert(out));
 }
